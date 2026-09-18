@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "test:coverage": "node --experimental-test-coverage --test tests/*.test.js",
+    "test:coverage": "node --experimental-test-coverage --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=98 --test tests/*.test.js",
     "test:e2e": "playwright test"
   },
   "devDependencies": {
