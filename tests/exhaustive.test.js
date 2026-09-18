@@ -18,6 +18,9 @@ import {
   pieceAt,
   visibleType,
   originalTypeLabel,
+  sideName,
+  opposite,
+  inBounds,
 } from '../src/game.js';
 
 const TYPES = ['king', 'rook', 'knight', 'bishop', 'advisor', 'cannon', 'pawn'];
@@ -415,6 +418,19 @@ test('seed、shuffle、标签函数边界', () => {
       assert.equal(originalTypeLabel(p), visibleType(p));
     }
   }
+});
+
+test('基础辅助函数红黑分支与边界完整覆盖', () => {
+  assert.equal(sideName(SIDE.RED), '红方');
+  assert.equal(sideName(SIDE.BLACK), '黑方');
+  assert.equal(opposite(SIDE.RED), SIDE.BLACK);
+  assert.equal(opposite(SIDE.BLACK), SIDE.RED);
+  assert.equal(inBounds(0, 0), true);
+  assert.equal(inBounds(8, 9), true);
+  assert.equal(inBounds(-1, 0), false);
+  assert.equal(inBounds(9, 9), false);
+  assert.equal(inBounds(0, -1), false);
+  assert.equal(inBounds(0, 10), false);
 });
 
 test('非法与终局状态的所有操作入口均拒绝', () => {
