@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>随机暗棋 · 原型</title>
+  <link rel="stylesheet" href="src/style.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">RANDOM DARK CHINESE CHESS</div>
+        <h1>随机暗棋</h1>
+        <p>位置决定第一次行动，翻棋决定之后身份。</p>
+      </div>
+      <button id="restartBtn" class="secondary">重新开局</button>
+    </header>
+
+    <section class="layout">
+      <div class="game-card">
+        <div class="turnbar">
+          <div id="turnText">轮到：红方</div>
+          <div id="hintText">选择一枚己方棋子</div>
+        </div>
+        <div id="board" class="board" aria-label="中国象棋棋盘"></div>
+      </div>
+
+      <aside class="side-card">
+        <section class="panel">
+          <h2>操作</h2>
+          <button id="revealBtn" disabled>原地翻开</button>
+          <div id="selectedInfo" class="selected-info">尚未选择棋子</div>
+        </section>
+
+        <section class="panel">
+          <h2>规则提示</h2>
+          <ul>
+            <li>暗棋第一次行动只能按“原始位置类型”走。</li>
+            <li>暗棋移动后立即翻开。</li>
+            <li>翻开后只能按真实棋子走。</li>
+            <li>吃掉暗棋默认不展示其真实身份。</li>
+            <li>吃掉帅/将即胜。</li>
+          </ul>
+        </section>
+
+        <section class="panel log-panel">
+          <h2>对局记录</h2>
+          <div id="log" class="log"></div>
+        </section>
+      </aside>
+    </section>
+  </main>
+  <script src="src/app.js"></script>
+</body>
+</html>
