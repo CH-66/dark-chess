@@ -338,3 +338,116 @@ test('固定种子随机源连续序列可复现且值域正确', () => {
     assert.ok(av >= 0 && av < 1);
   }
 });
+
+test('七类棋子边界：车、马、象、仕、帅', () => {
+  const rook = piece('rook', SIDE.RED, 0, 0, { id: 'rook' });
+  targetsAt(stateWith([rook]), rook, [[8, 0], [0, 9]]);
+
+  const horse = piece('knight', SIDE.RED, 0, 0, { id: 'horse' });
+  targetsAt(stateWith([horse]), horse, [[1, 2], [2, 1]]);
+
+  const bishop = piece('bishop', SIDE.RED, 0, 0, { id: 'bishop' });
+  noTargetsAt(stateWith([bishop]), bishop, [[-2, 2], [2, -2], [2, 2]]);
+
+  const advisor = piece('advisor', SIDE.RED, 3, 7, { id: 'advisor' });
+  targetsAt(stateWith([advisor]), advisor, [[4, 8]]);
+
+  const king = piece('king', SIDE.RED, 3, 9, { id: 'king' });
+  targetsAt(stateWith([king]), king, [[4, 9], [3, 8]]);
+  noTargetsAt(stateWith([king]), king, [[2, 9], [3, 10]]);
+});
+
+test('马腿：两个不同方向的阻挡点分别生效', () => {
+  const horse = piece('knight', SIDE.RED, 4, 4, { id: 'horse' });
+  const legRight = piece('pawn', SIDE.RED, 5, 4, { id: 'right-leg' });
+  const legUp = piece('pawn', SIDE.RED, 4, 3, { id: 'up-leg' });
+  const state = stateWith([horse, legRight, legUp]);
+
+  noTargetsAt(state, horse, [[6, 5], [5, 2]]);
+  targetsAt(state, horse, [[2, 3], [2, 5], [3, 6], [5, 6]]);
+});
+
+test('象眼：四个方向逐一受阻', () => {
+  const bishop = piece('bishop', SIDE.RED, 4, 6, { id: 'bishop' });
+  const blockers = [
+    piece('pawn', SIDE.RED, 3, 7, { id: 'b1' }),
+    piece('pawn', SIDE.RED, 5, 7, { id: 'b2' }),
+    piece('pawn', SIDE.RED, 3, 5, { id: 'b3' }),
+    piece('pawn', SIDE.RED, 5, 5, { id: 'b4' }),
+  ];
+  noTargetsAt(stateWith([bishop, ...blockers]), bishop, [[2, 8], [6, 8], [2, 4], [6, 4]]);
+});
+
+test('仕与帅：不能越出九宫边界', () => {
+  const advisor = piece('advisor', SIDE.RED, 3, 9, { id: 'advisor' });
+  noTargetsAt(stateWith([advisor]), advisor, [[2, 8], [2, 10], [4, 10]]);
+  targetsAt(stateWith([advisor]), advisor, [[4, 8]]);
+
+  const king = piece('king', SIDE.RED, 5, 7, { id: 'king' });
+  noTargetsAt(stateWith([king]), king, [[6, 7], [5, 6]]);
+  targetsAt(stateWith([king]), king, [[4, 7], [5, 8]]);
+});
+
+test('炮：空路可走，但遇第一枚棋子后只能隔一子吃子', () => {
+  const cannon = piece('cannon', SIDE.RED, 4, 4, { id: 'cannon' });
+  const ownScreen = piece('pawn', SIDE.RED, 4, 2, { id: 'screen' });
+  const enemy = piece('pawn', SIDE.BLACK, 4, 0, { id: 'enemy' });
+  const state = stateWith([cannon, ownScreen, enemy]);
+
+  targetsAt(state, cannon, [[4, 5], [4, 6], [4, 7], [4, 8], [4, 9], [3, 4], [2, 4], [0, 4]]);
+  assert.equal(legalTargets(state, state.pieces.find(p => p.id === cannon.id)).find(t => t.x === 4 && t.y === 0)?.capture, 'enemy');
+  noTargetsAt(state, cannon, [[4, 1]]);
+});
+
+test('兵：红黑双方过河规则对称', () => {
+  const redBefore = stateWith([piece('pawn', SIDE.RED, 4, 6)]);
+  assert.deepEqual(legalTargets(redBefore, redBefore.pieces[0]).map(t => [t.x, t.y]), [[4, 5]]);
+
+  const redAfter = stateWith([piece('pawn', SIDE.RED, 4, 4)]);
+  targetsAt(redAfter, redAfter.pieces[0], [[4, 3], [3, 4], [5, 4]]);
+  noTargetsAt(redAfter, redAfter.pieces[0], [[4, 5]]);
+
+  const blackBefore = stateWith([piece('pawn', SIDE.BLACK, 4, 3)], SIDE.BLACK);
+  assert.deepEqual(legalTargets(blackBefore, blackBefore.pieces[0]).map(t => [t.x, t.y]), [[4, 4]]);
+
+  const blackAfter = stateWith([piece('pawn', SIDE.BLACK, 4, 5)], SIDE.BLACK);
+  targetsAt(blackAfter, blackAfter.pieces[0], [[4, 6], [3, 5], [5, 5]]);
+  noTargetsAt(blackAfter, blackAfter.pieces[0], [[4, 4]]);
+});
+
+test('组合位置：车、马、炮、象同时受阻时互不串规则', () => {
+  const rook = piece('rook', SIDE.RED, 0, 4, { id: 'rook' });
+  const horse = piece('knight', SIDE.RED, 4, 4, { id: 'horse' });
+  const cannon = piece('cannon', SIDE.RED, 8, 4, { id: 'cannon' });
+  const bishop = piece('bishop', SIDE.RED, 2, 6, { id: 'bishop' });
+  const blockers = [
+    piece('pawn', SIDE.RED, 0, 6, { id: 'r-block' }),
+    piece('pawn', SIDE.RED, 5, 4, { id: 'h-leg' }),
+    piece('pawn', SIDE.RED, 8, 3, { id: 'c-screen' }),
+    piece('pawn', SIDE.BLACK, 8, 2, { id: 'c-target' }),
+    piece('pawn', SIDE.RED, 3, 5, { id: 'b-eye' }),
+  ];
+  const state = stateWith([rook, horse, cannon, bishop, ...blockers]);
+
+  noTargetsAt(state, rook, [[0, 6]]);
+  noTargetsAt(state, horse, [[6, 5]]);
+  assert.equal(legalTargets(state, state.pieces.find(p => p.id === cannon.id)).find(t => t.x === 8 && t.y === 2)?.capture, 'c-target');
+  noTargetsAt(state, bishop, [[4, 4]]);
+});
+
+test('暗棋：首次移动使用原始类型，移动后改按真实类型', () => {
+  const hidden = piece('rook', SIDE.RED, 4, 4, {
+    id: 'hidden',
+    originalType: 'rook',
+    actualType: 'knight',
+    revealed: false,
+  });
+  const state = stateWith([hidden]);
+  targetsAt(state, hidden, [[4, 0], [0, 4], [8, 4]]);
+  const result = movePiece(state, 'hidden', 4, 5);
+  assert.equal(result.state.pieces[0].revealed, true);
+  const revealedState = { ...result.state, turn: SIDE.RED };
+  const revealedPiece = revealedState.pieces[0];
+  const revealedTargets = legalTargets(revealedState, revealedPiece).map(t => [t.x, t.y]);
+  assert.deepEqual(revealedTargets.sort(), [[2, 4], [2, 6], [3, 3], [3, 7], [5, 3], [5, 7], [6, 4], [6, 6]].sort());
+});
