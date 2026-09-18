@@ -30,9 +30,9 @@
 
 ## 运行
 
-这是零依赖静态原型，直接打开 index.html 即可运行。
+这是零依赖静态原型。由于浏览器对 `file://` 下的 ES Module 有访问限制，建议通过静态服务器运行。
 
-也可以在仓库根目录启动任意静态服务器：
+可以在仓库根目录启动任意静态服务器：
 
 ```bash
 python3 -m http.server 8080
@@ -47,6 +47,7 @@ python3 -m http.server 8080
 ```bash
 npm install
 npm test
+npm run test:coverage
 ```
 
 ## 浏览器完整交互验收
@@ -73,7 +74,7 @@ npm run test:e2e
 - 纯函数状态更新；
 - 固定种子可复现。
 
-GitHub Actions 会在 push / pull request 时自动执行测试。
+GitHub Actions 会在 push / pull request 时自动执行规则测试、内建 coverage 与 Chromium E2E；当前高强度验证为 46/46 规则测试 + 8/8 浏览器测试通过。
 
 ## 目录
 

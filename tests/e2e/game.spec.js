@@ -40,6 +40,61 @@ test.describe('浏览器完整交互验收', () => {
     await expect(page.locator('#log .log-entry')).toHaveCount(1);
   });
 
+  test('固定 seed 产生完全一致的浏览器棋盘布局', async ({ page }) => {
+    const signature = async () => page.locator('#board .piece').evaluateAll(nodes => nodes.map(el => ({ id: el.dataset.pieceId, left: el.style.left, top: el.style.top, text: el.textContent })).sort((a, b) => a.id.localeCompare(b.id)));
+    await page.goto('/');
+    await page.locator('#seedInput').fill('E2E-REPEAT-001');
+    await page.locator('#restartBtn').click();
+    const first = await signature();
+    await page.locator('#restartBtn').click();
+    const second = await signature();
+    expect(second).toEqual(first);
+  });
+
+  test('暗棋真实身份不会出现在公开 DOM 文本中，非己方棋子不可选', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#board .piece.hidden')).toHaveCount(30);
+    await expect(page.locator('#board .piece.hidden').first()).toHaveText('暗');
+    const blackKing = page.locator('#board .piece.black.king');
+    await blackKing.click();
+    await expect(page.locator('#selectedBadge')).toHaveText('未选择');
+
+    const redHidden = page.locator('#board .piece.red.hidden').first();
+    await redHidden.click();
+    await expect(redHidden).toHaveClass(/selected/);
+    await redHidden.click();
+    await expect(page.locator('#selectedBadge')).toHaveText('未选择');
+    await expect(page.locator('#revealBtn')).toBeDisabled();
+  });
+
+  test('终局后页面禁止继续操作，并正确保持胜负信息', async ({ page }) => {
+    const state = {
+      pieces: [
+        { id: 'RED-ROOK', side: 'RED', x: 0, y: 9, originalType: 'rook', actualType: 'rook', revealed: true, alive: true },
+        { id: 'BLACK-KING', side: 'BLACK', x: 0, y: 6, originalType: 'king', actualType: 'king', revealed: true, alive: true },
+        { id: 'RED-HIDDEN', side: 'RED', x: 8, y: 9, originalType: 'rook', actualType: 'pawn', revealed: false, alive: true },
+      ],
+      turn: 'RED', selectedId: null, gameOver: false, winner: null, seed: 'E2E-GAME-OVER-GUARD',
+    };
+    await installState(page, state);
+    await page.locator('[data-piece-id="RED-ROOK"]').click();
+    await page.locator('[data-piece-id="BLACK-KING"]').click();
+    await expect(page.locator('#phaseText')).toHaveText('对局结束');
+    await expect(page.locator('#revealBtn')).toBeDisabled();
+    await page.locator('[data-piece-id="RED-HIDDEN"]').click();
+    await expect(page.locator('#selectedBadge')).toHaveText('未选择');
+    await expect(page.locator('#turnText')).toHaveText('红方获胜');
+  });
+
+  test('移动端棋盘完整可视且不产生横向溢出', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await expect(page.locator('#board')).toBeVisible();
+    await expect(page.locator('#board .piece')).toHaveCount(32);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+
   test('暗棋移动后自动翻开并切换回合', async ({ page }) => {
     await page.goto('/');
     const hiddenRedId = await page.locator('#board .piece.red.hidden').first().getAttribute('data-piece-id');
