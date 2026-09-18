@@ -445,7 +445,7 @@ test('暗棋：首次移动使用原始类型，移动后改按真实类型', ()
   });
   const state = stateWith([hidden]);
   targetsAt(state, hidden, [[4, 0], [0, 4], [8, 4]]);
-  const result = movePiece(state, 'hidden', 4, 6);
+  const result = movePiece(state, 'hidden', 4, 5);
   assert.equal(result.state.pieces[0].revealed, true);
   const revealedTargets = legalTargets(result.state, result.state.pieces[0]).map(t => [t.x, t.y]);
   targetsAt(result.state, result.state.pieces[0], [[2, 5], [2, 7], [3, 4], [3, 8], [5, 4], [5, 8], [6, 5], [6, 7]]);
