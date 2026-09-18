@@ -180,8 +180,12 @@ async function animateMove(piece, target) {
   await delay(ANIMATION_MS);
 
   if (!piece.revealed && pieceEl) {
+    const revealed = result.state.pieces.find(p => p.id === piece.id);
     pieceEl.classList.add('flipping');
     await delay(FLIP_MS / 2);
+    pieceEl.textContent = visibleType(revealed);
+    pieceEl.classList.remove('hidden');
+    pieceEl.classList.add('revealed');
   }
 
   state = result.state;

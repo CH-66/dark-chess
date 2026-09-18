@@ -39,7 +39,7 @@ h1 { margin:5px 0; font-size:clamp(28px,4vw,40px); letter-spacing:-.03em; }
 .palace-red { top:70%; }
 .palace-black { top:0; }
 .piece,.target-cell { position:absolute; transform:translate(-50%,-50%); }
-.piece { width:8.1%; aspect-ratio:1; border-radius:50%; border:2px solid #744d2e; cursor:pointer; user-select:none; font-family:"KaiTi","STKaiti","Songti SC",serif; font-size:clamp(18px,3vw,33px); font-weight:900; display:flex; align-items:center; justify-content:center; color:#201a15; background:radial-gradient(circle at 34% 25%,#fff7dc 0 13%,transparent 14%),radial-gradient(circle at 36% 28%,#f4d9a2 0,#d5a75e 70%,#b9813e 100%); box-shadow:0 5px 10px rgba(60,38,20,.24),inset 0 1px 2px rgba(255,255,255,.7); transition:box-shadow .15s ease,filter .15s ease,transform .15s ease; z-index:8; }
+.piece { transform-style:preserve-3d; backface-visibility:hidden; width:8.1%; aspect-ratio:1; border-radius:50%; border:2px solid #744d2e; cursor:pointer; user-select:none; font-family:"KaiTi","STKaiti","Songti SC",serif; font-size:clamp(18px,3vw,33px); font-weight:900; display:flex; align-items:center; justify-content:center; color:#201a15; background:radial-gradient(circle at 34% 25%,#fff7dc 0 13%,transparent 14%),radial-gradient(circle at 36% 28%,#f4d9a2 0,#d5a75e 70%,#b9813e 100%); box-shadow:0 5px 10px rgba(60,38,20,.24),inset 0 1px 2px rgba(255,255,255,.7); transition:box-shadow .15s ease,filter .15s ease,transform .15s ease; z-index:8; }
 .piece::after { content:""; position:absolute; inset:4px; border-radius:50%; border:1px solid rgba(112,75,42,.35); pointer-events:none; }
 .piece.red { color:#ad2b22; }
 .piece.black { color:#211d19; }
