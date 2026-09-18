@@ -3,54 +3,78 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>随机暗棋 · 原型</title>
+  <title>随机暗棋 · 游戏原型</title>
   <link rel="stylesheet" href="src/style.css" />
 </head>
 <body>
   <main class="app">
     <header class="topbar">
-      <div>
+      <div class="brand">
         <div class="eyebrow">RANDOM DARK CHINESE CHESS</div>
         <h1>随机暗棋</h1>
         <p>位置决定第一次行动，翻棋决定之后身份。</p>
       </div>
-      <button id="restartBtn" class="secondary">重新开局</button>
+      <button id="restartBtn" class="secondary" type="button">重新开局</button>
     </header>
 
-    <section class="layout">
+    <section class="game-shell">
       <div class="game-card">
-        <div class="turnbar">
-          <div id="turnText">轮到：红方</div>
-          <div id="hintText">选择一枚己方棋子</div>
+        <div class="statusbar">
+          <div>
+            <div id="turnText" class="turn">红方回合</div>
+            <div id="hintText" class="hint">选择一枚己方棋子开始行动</div>
+          </div>
+          <div id="phaseText" class="phase">对局进行中</div>
         </div>
-        <div id="board" class="board" aria-label="中国象棋棋盘"></div>
+
+        <div class="board-wrap">
+          <div id="board" class="board" aria-label="随机暗棋棋盘"></div>
+        </div>
+
+        <div class="legend">
+          <span><i class="dot red-dot"></i>红方</span>
+          <span><i class="dot black-dot"></i>黑方</span>
+          <span><i class="dot hidden-dot"></i>暗棋</span>
+          <span><i class="dot move-dot"></i>可移动</span>
+        </div>
       </div>
 
       <aside class="side-card">
-        <section class="panel">
-          <h2>操作</h2>
-          <button id="revealBtn" disabled>原地翻开</button>
-          <div id="selectedInfo" class="selected-info">尚未选择棋子</div>
+        <section class="panel action-panel">
+          <div class="panel-title">
+            <h2>当前操作</h2>
+            <span id="selectedBadge" class="badge">未选择</span>
+          </div>
+          <button id="revealBtn" class="primary" disabled type="button">原地翻开</button>
+          <div id="selectedInfo" class="selected-info">选择己方棋子后，这里会显示它的公开信息。</div>
         </section>
 
         <section class="panel">
-          <h2>规则提示</h2>
-          <ul>
-            <li>暗棋第一次行动只能按“原始位置类型”走。</li>
-            <li>暗棋移动后立即翻开。</li>
-            <li>翻开后只能按真实棋子走。</li>
-            <li>吃掉暗棋默认不展示其真实身份。</li>
-            <li>吃掉帅/将即胜。</li>
+          <h2>规则速览</h2>
+          <ul class="rules">
+            <li>暗棋首次行动按初始位置类型走，移动后必须翻开。</li>
+            <li>也可以选择原地翻开，翻开后本回合结束。</li>
+            <li>翻开后永久公开，并按真实棋子走法行动。</li>
+            <li>吃暗棋不揭示其真实身份；吃到帅/将即胜。</li>
           </ul>
         </section>
 
         <section class="panel log-panel">
-          <h2>对局记录</h2>
-          <div id="log" class="log"></div>
+          <div class="panel-title">
+            <h2>对局记录</h2>
+            <span id="moveCount" class="muted">0 手</span>
+          </div>
+          <div id="log" class="log" aria-live="polite"></div>
         </section>
       </aside>
     </section>
+
+    <footer class="footer">
+      <span>V0.2 Prototype</span>
+      <span>本地双人 · 零依赖</span>
+    </footer>
   </main>
-  <script src="src/app.js"></script>
+
+  <script type="module" src="src/app.js"></script>
 </body>
 </html>
