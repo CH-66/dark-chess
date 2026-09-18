@@ -28,7 +28,7 @@ let busy = false;
 let moveCount = 0;
 
 function pointStyle(x, y) {
-  return { left: (x / 8) * 100 + '%', top: (y / 9) * 100 + '%' };
+  return { left: (4 + (x / 8) * 92) + '%', top: (y / 9) * 100 + '%' };
 }
 
 function drawGrid() {
