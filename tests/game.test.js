@@ -422,7 +422,7 @@ test('组合位置：车、马、炮、象同时受阻时互不串规则', () =>
   const blockers = [
     piece('pawn', SIDE.RED, 0, 6, { id: 'r-block' }),
     piece('pawn', SIDE.RED, 5, 4, { id: 'h-leg' }),
-    piece('pawn', SIDE.RED, 6, 4, { id: 'c-screen' }),
+    piece('pawn', SIDE.RED, 8, 3, { id: 'c-screen' }),
     piece('pawn', SIDE.BLACK, 8, 2, { id: 'c-target' }),
     piece('pawn', SIDE.RED, 3, 5, { id: 'b-eye' }),
   ];
