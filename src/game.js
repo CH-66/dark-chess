@@ -40,11 +40,17 @@ export function shuffle(array, random = Math.random) {
   return result;
 }
 
+export function createSeededRandom(seed) {
+  let t = String(seed ?? '').split('').reduce((a,ch)=>(Math.imul(a,31)+ch.charCodeAt(0))>>>0, 2166136261);
+  return () => { t += 0x6D2B79F5; let r=Math.imul(t^(t>>>15),1|t); r^=r+Math.imul(r^(r>>>7),61|r); return ((r^(r>>>14))>>>0)/4294967296; };
+}
+export function normalizeSeed(seed) { const value=String(seed ?? '').trim(); return value || Math.floor(Math.random()*0xFFFFFFFF).toString(36).toUpperCase(); }
+
 export function buildPiecePool() {
   return Object.entries(HIDDEN_COUNTS).flatMap(([type, count]) => Array(count).fill(type));
 }
 
-export function createInitialState(random = Math.random) {
+export function createInitialState(random = Math.random, seed = null) {
   const pieces = [];
   for (const side of [SIDE.RED, SIDE.BLACK]) {
     const slots = side === SIDE.RED
@@ -75,8 +81,11 @@ export function createInitialState(random = Math.random) {
     selectedId: null,
     gameOver: false,
     winner: null,
+    seed,
   };
 }
+
+export function createGame(seed = null) { const actualSeed=normalizeSeed(seed); return createInitialState(createSeededRandom(actualSeed), actualSeed); }
 
 export function pieceAt(state, x, y) {
   return state.pieces.find(piece => piece.alive && piece.x === x && piece.y === y) ?? null;
