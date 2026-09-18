@@ -398,13 +398,15 @@ test('seed、shuffle、标签函数边界', () => {
   assert.notEqual(normalizeSeed(''), '');
   assert.notEqual(normalizeSeed('   '), '');
 
-  const randomValues = [0, 0.999999999];
+  const randomValues = [0, 0];
   const shuffled = shuffle(['a', 'b', 'c'], (() => {
     let i = 0;
     return () => randomValues[i++] ?? 0.5;
   })());
   assert.equal(shuffled.length, 3);
   assert.deepEqual([...new Set(shuffled)], ['a', 'b', 'c']);
+  assert.deepEqual(shuffled, ['c', 'b', 'a']);
+  assert.equal(shuffle([], () => 0).length, 0);
 
   for (const side of [SIDE.RED, SIDE.BLACK]) {
     for (const type of TYPES) {
