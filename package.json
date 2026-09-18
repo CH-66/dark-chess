@@ -1,9 +1,13 @@
 {
   "name": "dark-chess",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test tests/game.test.js"
+    "test": "node --test tests/game.test.js",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0"
   }
 }
