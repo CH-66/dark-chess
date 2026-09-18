@@ -33,7 +33,7 @@ function stateWith(pieces, turn = SIDE.RED) {
 }
 
 function piece(type, side, x, y, extra = {}) {
-  return { type, actualType: type, side, x, y, alive: true, ...extra };
+  return { type, actualType: type, side, x, y, alive: true, revealed: true, ...extra };
 }
 
 function targetsAt(state, targetPiece, expected) {
