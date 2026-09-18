@@ -1,6 +1,6 @@
 import {
   SIDE,
-  createInitialState,
+  createGame,
   legalTargets,
   movePiece,
   revealInPlace,
@@ -18,12 +18,14 @@ const selectedInfoEl = document.getElementById('selectedInfo');
 const selectedBadgeEl = document.getElementById('selectedBadge');
 const moveCountEl = document.getElementById('moveCount');
 const logEl = document.getElementById('log');
+const seedInputEl = document.getElementById('seedInput');
+const seedTextEl = document.getElementById('seedText');
 const restartBtn = document.getElementById('restartBtn');
 
 const ANIMATION_MS = 360;
 const FLIP_MS = 620;
 
-let state = createInitialState();
+let state = createGame();
 let busy = false;
 let moveCount = 0;
 
@@ -125,6 +127,8 @@ function render() {
   }
 
   moveCountEl.textContent = moveCount + ' 手';
+  if (seedTextEl) seedTextEl.textContent = state.seed ? '种子：' + state.seed : '随机种子';
+  if (seedInputEl && document.activeElement !== seedInputEl) seedInputEl.value = state.seed ?? '';
 }
 
 function handlePieceClick(id) {
@@ -241,7 +245,8 @@ function addLog(message) {
 
 restartBtn.addEventListener('click', () => {
   if (busy) return;
-  state = createInitialState();
+  const requestedSeed = seedInputEl?.value.trim() || null;
+  state = createGame(requestedSeed);
   moveCount = 0;
   logEl.innerHTML = '';
   addLog('新对局开始：红方先手。');
