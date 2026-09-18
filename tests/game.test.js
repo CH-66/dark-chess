@@ -37,14 +37,16 @@ function piece(type, side, x, y, extra = {}) {
 }
 
 function targetsAt(state, targetPiece, expected) {
-  const actual = legalTargets(state, targetPiece).map(t => [t.x, t.y]);
+  const current = state.pieces.find(p => p.id === targetPiece.id) ?? targetPiece;
+  const actual = legalTargets(state, current).map(t => [t.x, t.y]);
   for (const point of expected) {
     assert.ok(actual.some(([x, y]) => x === point[0] && y === point[1]));
   }
 }
 
 function noTargetsAt(state, targetPiece, forbidden) {
-  const actual = legalTargets(state, targetPiece).map(t => [t.x, t.y]);
+  const current = state.pieces.find(p => p.id === targetPiece.id) ?? targetPiece;
+  const actual = legalTargets(state, current).map(t => [t.x, t.y]);
   for (const point of forbidden) {
     assert.ok(!actual.some(([x, y]) => x === point[0] && y === point[1]));
   }
