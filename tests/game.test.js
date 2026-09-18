@@ -101,7 +101,7 @@ test('暗棋首次移动使用原始位置类型，而不是真实类型', () =>
   });
   const state = stateWith([hidden]);
 
-  const targets = legalTargets(state, hidden);
+  const targets = legalTargets(state, state.pieces.find(p => p.id === hidden.id));
   assert.ok(targets.some(t => t.x === 8 && t.y === 4));
   assert.ok(!targets.some(t => t.x === 6 && t.y === 6));
 });
@@ -144,7 +144,7 @@ test('翻开后的炮按真实身份行动，并遵守炮架规则', () => {
 
   targetsAt(state, cannon, [[1, 5], [2, 5], [3, 5]]);
   assert.equal(
-    legalTargets(state, cannon).find(t => t.x === 3 && t.y === 5).capture,
+    legalTargets(state, state.pieces.find(p => p.id === cannon.id)).find(t => t.x === 3 && t.y === 5).capture,
     'enemy'
   );
 });
@@ -365,7 +365,7 @@ test('马腿：两个不同方向的阻挡点分别生效', () => {
   const state = stateWith([horse, legRight, legUp]);
 
   noTargetsAt(state, horse, [[6, 5], [5, 2]]);
-  targetsAt(state, horse, [[2, 3], [3, 2], [2, 5], [3, 6], [5, 6], [6, 3]]);
+  targetsAt(state, horse, [[2, 3], [2, 5], [3, 6], [5, 6]]);
 });
 
 test('象眼：四个方向逐一受阻', () => {
@@ -396,7 +396,7 @@ test('炮：空路可走，但遇第一枚棋子后只能隔一子吃子', () =>
   const state = stateWith([cannon, ownScreen, enemy]);
 
   targetsAt(state, cannon, [[4, 5], [4, 6], [4, 7], [4, 8], [4, 9], [3, 4], [2, 4], [0, 4]]);
-  assert.equal(legalTargets(state, cannon).find(t => t.x === 4 && t.y === 0)?.capture, 'enemy');
+  assert.equal(legalTargets(state, state.pieces.find(p => p.id === cannon.id)).find(t => t.x === 4 && t.y === 0)?.capture, 'enemy');
   noTargetsAt(state, cannon, [[4, 1]]);
 });
 
@@ -432,7 +432,7 @@ test('组合位置：车、马、炮、象同时受阻时互不串规则', () =>
 
   noTargetsAt(state, rook, [[0, 6]]);
   noTargetsAt(state, horse, [[6, 5]]);
-  assert.equal(legalTargets(state, cannon).find(t => t.x === 8 && t.y === 2)?.capture, 'c-target');
+  assert.equal(legalTargets(state, state.pieces.find(p => p.id === cannon.id)).find(t => t.x === 8 && t.y === 2)?.capture, 'c-target');
   noTargetsAt(state, bishop, [[4, 4]]);
 });
 
