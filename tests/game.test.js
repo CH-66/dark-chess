@@ -179,7 +179,7 @@ test('炮必须遵守无炮架不吃子、隔一子才能吃子', () => {
 
   targetsAt(state, cannon, [[1, 0], [4, 0]]);
   assert.equal(
-    legalTargets(state, cannon).find(t => t.x === 4 && t.y === 0).capture,
+    legalTargets(state, state.pieces.find(p => p.id === cannon.id)).find(t => t.x === 4 && t.y === 0).capture,
     'target'
   );
   noTargetsAt(state, cannon, [[3, 0]]);
@@ -381,7 +381,7 @@ test('象眼：四个方向逐一受阻', () => {
 
 test('仕与帅：不能越出九宫边界', () => {
   const advisor = piece('advisor', SIDE.RED, 3, 9, { id: 'advisor' });
-  noTargetsAt(stateWith([advisor]), advisor, [[2, 8], [4, 8], [2, 10], [4, 10]]);
+  noTargetsAt(stateWith([advisor]), advisor, [[2, 8], [2, 10], [4, 10]]);
   targetsAt(stateWith([advisor]), advisor, [[4, 8]]);
 
   const king = piece('king', SIDE.RED, 5, 7, { id: 'king' });
@@ -447,5 +447,7 @@ test('暗棋：首次移动使用原始类型，移动后改按真实类型', ()
   targetsAt(state, hidden, [[4, 0], [0, 4], [8, 4]]);
   const result = movePiece(state, 'hidden', 4, 6);
   assert.equal(result.state.pieces[0].revealed, true);
-  assert.deepEqual(legalTargets(result.state, result.state.pieces[0]).map(t => [t.x, t.y]).sort(), [[2,5],[3,4],[5,4],[6,5]].sort());
+  const revealedTargets = legalTargets(result.state, result.state.pieces[0]).map(t => [t.x, t.y]);
+  targetsAt(result.state, result.state.pieces[0], [[2, 5], [2, 7], [3, 4], [3, 8], [5, 4], [5, 8], [6, 5], [6, 7]]);
+  assert.equal(revealedTargets.length, 8);
 });
