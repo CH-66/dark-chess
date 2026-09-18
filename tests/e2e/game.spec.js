@@ -42,10 +42,10 @@ test.describe('浏览器完整交互验收', () => {
 
   test('暗棋移动后自动翻开并切换回合', async ({ page }) => {
     await page.goto('/');
-    const hiddenBlackId = await page.locator('#board .piece.black.hidden').first().getAttribute('data-piece-id');
-    const hiddenBlack = page.locator(`[data-piece-id="${hiddenBlackId}"]`);
-    await hiddenBlack.click();
-    await expect(page.locator(`[data-piece-id="${hiddenBlackId}"]`)).toHaveClass(/selected/);
+    const hiddenRedId = await page.locator('#board .piece.red.hidden').first().getAttribute('data-piece-id');
+    const hiddenRed = page.locator(`[data-piece-id="${hiddenRedId}"]`);
+    await hiddenRed.click();
+    await expect(page.locator(`[data-piece-id="${hiddenRedId}"]`)).toHaveClass(/selected/);
 
     const targets = page.locator('.target-cell');
     await expect(targets).not.toHaveCount(0);
@@ -54,7 +54,7 @@ test.describe('浏览器完整交互验收', () => {
     await expect(page.locator('#phaseText')).toHaveText('对局进行中', { timeout: 5_000 });
     await expect(page.locator('#turnText')).toHaveText('红方回合');
     await expect(page.locator('#moveCount')).toHaveText('1 手');
-    await expect(page.locator('#board .piece.black.revealed')).toHaveCount(2);
+    await expect(page.locator('#board .piece.red.revealed')).toHaveCount(2);
     await expect(page.locator('#log .log-entry').first()).toContainText('移动并翻开');
   });
 
@@ -86,7 +86,7 @@ test.describe('浏览器完整交互验收', () => {
     };
     await installState(page, state);
     await page.locator('[data-piece-id="RED-ROOK"]').click();
-    await page.locator('.target-cell.capture').click();
+    await page.locator('[data-piece-id="BLACK-KING"]').click();
     await expect(page.locator('#turnText')).toHaveText('红方获胜');
     await expect(page.locator('#phaseText')).toHaveText('对局结束');
     await expect(page.locator('#hintText')).toContainText('重新开局');
