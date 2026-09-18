@@ -42,9 +42,10 @@ test.describe('浏览器完整交互验收', () => {
 
   test('暗棋移动后自动翻开并切换回合', async ({ page }) => {
     await page.goto('/');
-    const hiddenBlack = page.locator('#board .piece.black.hidden').first();
+    const hiddenBlackId = await page.locator('#board .piece.black.hidden').first().getAttribute('data-piece-id');
+    const hiddenBlack = page.locator(`[data-piece-id="${hiddenBlackId}"]`);
     await hiddenBlack.click();
-    await expect(hiddenBlack).toHaveClass(/selected/);
+    await expect(page.locator(`[data-piece-id="${hiddenBlackId}"]`)).toHaveClass(/selected/);
 
     const targets = page.locator('.target-cell');
     await expect(targets).not.toHaveCount(0);
@@ -68,7 +69,7 @@ test.describe('浏览器完整交互验收', () => {
     };
     await installState(page, state);
     await page.locator('[data-piece-id="RED-ROOK"]').click();
-    await page.locator('.target-cell.capture').click();
+    await page.locator('[data-piece-id="BLACK-HIDDEN"]').click();
     await expect(page.locator('[data-piece-id="BLACK-HIDDEN"]')).toHaveCount(0);
     await expect(page.locator('#turnText')).toHaveText('黑方回合');
     await expect(page.locator('#log .log-entry').first()).toContainText('并吃子');
