@@ -142,7 +142,7 @@ test('翻开后的炮按真实身份行动，并遵守炮架规则', () => {
   const enemy = piece('pawn', SIDE.BLACK, 3, 5, { id: 'enemy' });
   const state = stateWith([cannon, screen, enemy]);
 
-  targetsAt(state, cannon, [[1, 5], [2, 5], [3, 5]]);
+  targetsAt(state, cannon, [[1, 5], [3, 5]]);
   assert.equal(
     legalTargets(state, state.pieces.find(p => p.id === cannon.id)).find(t => t.x === 3 && t.y === 5).capture,
     'enemy'
@@ -221,7 +221,7 @@ test('七类棋子均覆盖基础合法移动', () => {
     ['king', 4, 8, [[3, 8], [5, 8], [4, 7]]],
     ['rook', 4, 4, [[4, 0], [0, 4], [8, 4]]],
     ['knight', 4, 4, [[2, 3], [3, 2], [5, 2], [6, 3]]],
-    ['bishop', 2, 6, [[0, 8], [4, 8], [0, 4], [4, 4]]],
+    ['bishop', 2, 6, [[0, 8], [4, 8]]],
     ['advisor', 4, 8, [[3, 7], [5, 7], [3, 9], [5, 9]]],
     ['cannon', 4, 4, [[4, 0], [0, 4], [8, 4]]],
     ['pawn', 4, 4, [[4, 3], [3, 4], [5, 4]]],
@@ -447,7 +447,8 @@ test('暗棋：首次移动使用原始类型，移动后改按真实类型', ()
   targetsAt(state, hidden, [[4, 0], [0, 4], [8, 4]]);
   const result = movePiece(state, 'hidden', 4, 5);
   assert.equal(result.state.pieces[0].revealed, true);
-  const revealedTargets = legalTargets(result.state, result.state.pieces[0]).map(t => [t.x, t.y]);
-  targetsAt(result.state, result.state.pieces[0], [[2, 5], [2, 7], [3, 4], [3, 8], [5, 4], [5, 8], [6, 5], [6, 7]]);
-  assert.equal(revealedTargets.length, 8);
+  const revealedState = { ...result.state, turn: SIDE.RED };
+  const revealedPiece = revealedState.pieces[0];
+  const revealedTargets = legalTargets(revealedState, revealedPiece).map(t => [t.x, t.y]);
+  assert.deepEqual(revealedTargets.sort(), [[2, 4], [2, 6], [3, 3], [3, 7], [5, 3], [5, 7], [6, 4], [6, 6]].sort());
 });
