@@ -433,7 +433,12 @@ test('基础辅助函数红黑分支与边界完整覆盖', () => {
   assert.equal(inBounds(0, 10), false);
 });
 
-test('非法与终局状态的所有操作入口均拒绝', () => {
+test('空对象、未知棋子与终局状态的所有操作入口均拒绝', () => {
+  const seedState = bareState([makePiece('rook', SIDE.RED, 0, 9, { id: 'red' })], SIDE.RED);
+  assert.deepEqual(legalTargets(seedState, null), []);
+  assert.throws(() => movePiece(seedState, 'missing', 0, 8), /非法移动/);
+  assert.throws(() => revealInPlace(seedState, 'missing'), /非法翻棋/);
+
   const red = makePiece('rook', SIDE.RED, 0, 9, { id: 'red' });
   const black = makePiece('rook', SIDE.BLACK, 0, 0, { id: 'black' });
   const dead = makePiece('pawn', SIDE.RED, 2, 2, { id: 'dead', alive: false });
