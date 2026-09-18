@@ -160,7 +160,8 @@ test('象不能过河，并且塞象眼后对应方向不可走', () => {
   const bishop = piece('bishop', SIDE.RED, 2, 4, { id: 'bishop' });
   const state = stateWith([bishop]);
 
-  targetsAt(state, bishop, [[0, 6], [4, 6]]);\n  noTargetsAt(state, bishop, [[0, 2], [4, 2]]);
+  targetsAt(state, bishop, [[0, 6], [4, 6]]);
+  noTargetsAt(state, bishop, [[0, 2], [4, 2]]);
 
   const start = piece('bishop', SIDE.RED, 2, 6, { id: 'blocked-bishop' });
   const blocker = piece('pawn', SIDE.RED, 3, 5, { id: 'eye-blocker' });
