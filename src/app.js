@@ -257,3 +257,17 @@ revealBtn.addEventListener('click', animateReveal);
 
 addLog('新对局开始：红方先手。');
 render();
+
+if (new URLSearchParams(window.location.search).get('e2e') === '1') {
+  window.__DARK_CHESS_E2E__ = {
+    getState: () => structuredClone(state),
+    setState: (nextState, nextMoveCount = 0) => {
+      busy = false;
+      state = structuredClone(nextState);
+      moveCount = nextMoveCount;
+      logEl.innerHTML = '';
+      addLog('E2E 测试局面已载入。');
+      render();
+    },
+  };
+}
