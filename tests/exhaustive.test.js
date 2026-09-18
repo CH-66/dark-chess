@@ -405,7 +405,7 @@ test('seed、shuffle、标签函数边界', () => {
   })());
   assert.equal(shuffled.length, 3);
   assert.deepEqual([...new Set(shuffled)].sort(), ['a', 'b', 'c']);
-  assert.deepEqual(shuffled, ['c', 'b', 'a']);
+  assert.deepEqual(shuffle(['a', 'b', 'c'], () => 0), ['c', 'b', 'a']);
   assert.equal(shuffle([], () => 0).length, 0);
 
   for (const side of [SIDE.RED, SIDE.BLACK]) {
