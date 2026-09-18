@@ -52,7 +52,7 @@ test.describe('浏览器完整交互验收', () => {
     await targets.first().click();
 
     await expect(page.locator('#phaseText')).toHaveText('对局进行中', { timeout: 5_000 });
-    await expect(page.locator('#turnText')).toHaveText('红方回合');
+    await expect(page.locator('#turnText')).toHaveText('黑方回合');
     await expect(page.locator('#moveCount')).toHaveText('1 手');
     await expect(page.locator('#board .piece.red.revealed')).toHaveCount(2);
     await expect(page.locator('#log .log-entry').first()).toContainText('移动并翻开');
