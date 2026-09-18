@@ -14,7 +14,7 @@
         <h1>随机暗棋</h1>
         <p>位置决定第一次行动，翻棋决定之后身份。</p>
       </div>
-      <div class="seed-controls"><label for="seedInput">对局种子</label><input id="seedInput" placeholder="留空=随机"><span id="seedText">随机种子</span></div><button id="restartBtn" class="secondary" type="button">重新开局</button>
+      <div class="seed-controls"><label for="seedInput">对局种子</label><input id="seedInput" placeholder="留空=随机"><span id="seedText">随机种子</span></div><button id="restartBtn" class="secondary" type="button" data-testid="restart">重新开局</button>
     </header>
 
     <section class="game-shell">
@@ -28,7 +28,7 @@
         </div>
 
         <div class="board-wrap">
-          <div id="board" class="board" aria-label="随机暗棋棋盘"></div>
+          <div id="board" class="board" aria-label="随机暗棋棋盘" data-testid="board"></div>
         </div>
 
         <div class="legend">
@@ -45,7 +45,7 @@
             <h2>当前操作</h2>
             <span id="selectedBadge" class="badge">未选择</span>
           </div>
-          <button id="revealBtn" class="primary" disabled type="button">原地翻开</button>
+          <button id="revealBtn" class="primary" disabled type="button" data-testid="reveal">原地翻开</button>
           <div id="selectedInfo" class="selected-info">选择己方棋子后，这里会显示它的公开信息。</div>
         </section>
 

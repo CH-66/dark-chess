@@ -45,8 +45,19 @@ python3 -m http.server 8080
 安装 Node.js 20+ 后运行：
 
 ```bash
+npm install
 npm test
 ```
+
+## 浏览器完整交互验收
+
+浏览器 E2E 使用 Playwright + Chromium，覆盖开局、固定 seed、选择暗棋、原地翻棋、暗棋移动后自动翻开、吃暗棋、吃帅/将、重新开局等完整交互链路：
+
+```bash
+npm run test:e2e
+```
+
+完整记录见 `docs/BROWSER_ACCEPTANCE.md`。
 
 规则测试覆盖：
 
