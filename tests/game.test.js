@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SIDE, HIDDEN_COUNTS, createInitialState, legalTargets, movePiece, revealInPlace } from '../src/game.js';
+import { SIDE, HIDDEN_COUNTS, createInitialState, createGame, createSeededRandom, legalTargets, movePiece, revealInPlace } from '../src/game.js';
 
 function stateWith(pieces, turn = SIDE.RED) {
   return {
@@ -146,4 +146,35 @@ test('吃掉暗棋不会自动揭示', () => {
 test('非回合方不能移动', () => {
   const rook = piece('rook', SIDE.BLACK, 0, 0, {id:'rook'});
   assert.deepEqual(legalTargets(stateWith([rook], SIDE.RED), rook), []);
+});
+
+
+test('固定种子可复现布局，不同种子产生不同布局', () => {
+  const a=createGame('DEMO-20260918'), b=createGame('DEMO-20260918'), c=createGame('DEMO-OTHER');
+  assert.deepEqual(a.pieces.map(p=>p.actualType), b.pieces.map(p=>p.actualType));
+  assert.notDeepEqual(a.pieces.map(p=>p.actualType), c.pieces.map(p=>p.actualType));
+  assert.equal(a.seed,'DEMO-20260918');
+});
+
+test('固定种子随机源连续序列可复现', () => {
+  const a=createSeededRandom('ABC'), b=createSeededRandom('ABC');
+  assert.equal(a(),b()); assert.equal(a(),b()); assert.equal(a(),b());
+});
+
+test('七类棋子均覆盖基础合法移动', () => {
+  const cases=[
+    ['king',4,8,[[3,8],[5,8],[4,7]]], ['rook',4,4,[[4,0],[0,4],[8,4]]],
+    ['knight',4,4,[[2,3],[3,2],[5,2],[6,3]]], ['bishop',2,4,[[0,2],[4,2],[0,6],[4,6]]],
+    ['advisor',4,8,[[3,7],[5,7],[3,9],[5,9]]], ['cannon',4,4,[[4,0],[0,4],[8,4]]], ['pawn',4,4,[[4,3],[3,4],[5,4]]]
+  ];
+  for(const [type,x,y,targets] of cases){const p=piece(type,SIDE.RED,x,y,{id:type});const s=stateWith([p]);targetsAt(s,p,targets);}
+});
+
+test('组合局面同时验证马腿、炮架、车阻挡与己方棋子', () => {
+  const s=stateWith([
+    piece('rook',SIDE.RED,0,4,{id:'r'}),piece('pawn',SIDE.RED,0,2,{id:'own'}),
+    piece('knight',SIDE.RED,2,4,{id:'h'}),piece('pawn',SIDE.RED,2,5,{id:'leg'}),
+    piece('cannon',SIDE.RED,4,4,{id:'c'}),piece('pawn',SIDE.BLACK,6,4,{id:'screen'}),piece('pawn',SIDE.BLACK,8,4,{id:'target'})
+  ]);
+  noTargetsAt(s,s.pieces[0],[[0,2]]); noTargetsAt(s,s.pieces[2],[[4,6]]); targetsAt(s,s.pieces[4],[[5,4],[8,4]]);
 });
