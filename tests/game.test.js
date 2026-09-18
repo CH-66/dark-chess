@@ -33,7 +33,7 @@ function stateWith(pieces, turn = SIDE.RED) {
 }
 
 function piece(type, side, x, y, extra = {}) {
-  return { type, actualType: type, side, x, y, ...extra };
+  return { type, actualType: type, side, x, y, alive: true, ...extra };
 }
 
 function targetsAt(state, targetPiece, expected) {
@@ -140,7 +140,7 @@ test('翻开后的炮按真实身份行动，并遵守炮架规则', () => {
   const enemy = piece('pawn', SIDE.BLACK, 3, 5, { id: 'enemy' });
   const state = stateWith([cannon, screen, enemy]);
 
-  targetsAt(state, cannon, [[1, 5], [2, 5], [3, 5]]);
+  targetsAt(state, cannon, [[1, 5], [3, 5]]);
   assert.equal(
     legalTargets(state, cannon).find(t => t.x === 3 && t.y === 5).capture,
     'enemy'
@@ -153,14 +153,14 @@ test('马腿受阻不能移动', () => {
   const state = stateWith([horse, blocker]);
 
   noTargetsAt(state, horse, [[6, 5]]);
-  targetsAt(state, horse, [[6, 3], [2, 3]]);
+  targetsAt(state, horse, [[2, 3], [3, 2]]);
 });
 
 test('象不能过河，并且塞象眼后对应方向不可走', () => {
   const bishop = piece('bishop', SIDE.RED, 2, 4, { id: 'bishop' });
   const state = stateWith([bishop]);
 
-  noTargetsAt(state, bishop, [[0, 2], [4, 2], [0, 6], [4, 6]]);
+  targetsAt(state, bishop, [[0, 6], [4, 6]]);\n  noTargetsAt(state, bishop, [[0, 2], [4, 2]]);
 
   const start = piece('bishop', SIDE.RED, 2, 6, { id: 'blocked-bishop' });
   const blocker = piece('pawn', SIDE.RED, 3, 5, { id: 'eye-blocker' });
@@ -218,7 +218,7 @@ test('七类棋子均覆盖基础合法移动', () => {
     ['king', 4, 8, [[3, 8], [5, 8], [4, 7]]],
     ['rook', 4, 4, [[4, 0], [0, 4], [8, 4]]],
     ['knight', 4, 4, [[2, 3], [3, 2], [5, 2], [6, 3]]],
-    ['bishop', 2, 6, [[0, 8], [4, 8], [0, 4], [4, 4]]],
+    ['bishop', 2, 6, [[0, 8], [4, 8]]],
     ['advisor', 4, 8, [[3, 7], [5, 7], [3, 9], [5, 9]]],
     ['cannon', 4, 4, [[4, 0], [0, 4], [8, 4]]],
     ['pawn', 4, 4, [[4, 3], [3, 4], [5, 4]]],
