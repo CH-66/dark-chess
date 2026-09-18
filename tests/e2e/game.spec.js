@@ -95,7 +95,7 @@ test.describe('浏览器完整交互验收', () => {
     expect(overflow).toBeLessThanOrEqual(1);
   });
 
-  test('暗棋移动后自动翻开并切换回合', async ({ page }) =>
+  test('暗棋移动后自动翻开并切换回合', async ({ page }) => {
     await page.goto('/');
     const hiddenRedId = await page.locator('#board .piece.red.hidden').first().getAttribute('data-piece-id');
     const hiddenRed = page.locator(`[data-piece-id="${hiddenRedId}"]`);
