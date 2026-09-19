@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createGame } from '../src/game.js';
+import { createGame, SIDE } from '../src/game.js';
 import { AuthoritativeGame } from '../server/authoritative-game.js';
 import { Room } from '../server/room.js';
 import { filterForPlayer } from '../server/visibility.js';
