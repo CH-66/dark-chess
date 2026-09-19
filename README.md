@@ -14,6 +14,19 @@
 - 吃掉暗棋时默认不揭示其真实身份。
 - V1.0 不采用传统将军/应将判定，吃掉对方帅/将即胜。
 
+## V0.4 联网对战
+
+当前 V0.4 已把 `OnlineSession` 接入实际棋盘 UI，支持创建房间、房间号加入、双方在线落子、连接状态、错误提示与断线重连。运行完整联网原型：
+
+```bash
+npm install
+npm start
+```
+
+默认监听 `127.0.0.1:8080`。部署环境可通过 `PORT`、`HOST` 调整监听地址。
+
+详细第三阶段记录见 `docs/V0.4_PHASE3.md`。
+
 ## 原型
 
 当前原型已经包含：
@@ -110,8 +123,18 @@ GitHub Actions 会在 push / pull request 时自动执行规则测试、内建 c
 │   ├── app.js
 │   ├── game.js
 │   └── style.css
+├── server/
+│   ├── authoritative-game.js
+│   ├── index.js
+│   ├── room.js
+│   ├── visibility.js
+│   └── ws-server.js
 └── tests/
-    └── game.test.js
+    ├── game.test.js
+    ├── network.test.js
+    ├── protocol.test.js
+    ├── session.test.js
+    └── e2e/online-ui.spec.js
 ```
 
 ## 原型定位
@@ -119,3 +142,32 @@ GitHub Actions 会在 push / pull request 时自动执行规则测试、内建 c
 当前 V0.4 已建立本地 Session 与最小联网对战服务端边界：本地模式仍可独立运行，联网模式由 WebSocket + Room + AuthoritativeGame 驱动。
 
 联网实现必须由服务端维护真实棋子身份并执行权威规则判定，浏览器只能获得当前玩家有权看到的信息。
+
+
+## 当前阶段定位
+
+V0.4 第三阶段是可运行的联网对战原型，尚未进入生产公网部署。下一步进入部署、HTTPS/WSS、反向代理和异地浏览器联调。
+
+
+## 公网部署基线
+
+仓库已提供 `render.yaml` 和 `Dockerfile`。
+
+### Render
+
+1. 在 Render 创建 Blueprint/Web Service 并连接本仓库。
+2. 使用 `render.yaml` 的 Web Service 配置。
+3. 服务监听 `HOST=0.0.0.0`，端口读取 Render 注入的 `PORT`。
+4. 健康检查路径为 `/healthz`。
+5. 浏览器客户端会根据当前页面协议自动使用 `wss://` 连接。
+
+当前原型可以使用 Render Free 做公网联调；免费 Web Service 空闲 15 分钟会休眠，下一次 HTTP 请求或新的 WebSocket 连接会唤醒。免费实例文件系统也是临时的，因此当前房间状态只适合原型联调，不作为生产持久化方案。 
+
+### Docker
+
+```bash
+docker build -t dark-chess:0.4 .
+docker run --rm -p 8080:8080 -e HOST=0.0.0.0 -e PORT=8080 dark-chess:0.4
+```
+
+公网正式联调需要 HTTPS/WSS。当前服务端已经将 HTTP 与 WebSocket 放在同一个端口，便于直接放在反向代理后面。

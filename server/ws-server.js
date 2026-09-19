@@ -15,12 +15,20 @@ const MIME = Object.freeze({
   '.json': 'application/json; charset=utf-8',
 });
 
-export function createGameServer({ port = 8080 } = {}) {
+export function createGameServer({ port = 8080, host = '127.0.0.1' } = {}) {
   const rooms = new Map();
   const httpServer = createServer(async (req, res) => {
     try {
       const url = new URL(req.url, 'http://127.0.0.1');
       let pathname = decodeURIComponent(url.pathname);
+      if (pathname === '/healthz') {
+        res.writeHead(200, {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store',
+        });
+        res.end(JSON.stringify({ status: 'ok', rooms: rooms.size }));
+        return;
+      }
       if (pathname === '/') pathname = '/index.html';
       const relative = pathname.replace(/^\/+/, '');
       const file = normalize(join(ROOT, relative));
@@ -39,6 +47,11 @@ export function createGameServer({ port = 8080 } = {}) {
 
   const wss = new WebSocketServer({ server: httpServer });
   const sockets = new Map();
+  const heartbeatTimer = setInterval(() => {
+    for (const socket of wss.clients) {
+      if (socket.readyState === WebSocket.OPEN) socket.ping();
+    }
+  }, 10_000);
 
   function send(socket, message) {
     if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
@@ -57,7 +70,7 @@ export function createGameServer({ port = 8080 } = {}) {
     return rooms.get(context.roomId);
   }
 
-  function welcome(socket, room, player, type = 'room.joined') {
+  function welcome(socket, room, player, type = 'room.joined', commandId = null) {
     send(socket, {
       type,
       protocolVersion: 1,
@@ -66,6 +79,7 @@ export function createGameServer({ port = 8080 } = {}) {
       playerId: player.playerId,
       side: player.side,
       sessionToken: player.sessionToken,
+      commandId,
       started: room.isStarted(),
       revision: room.game?.revision ?? 0,
       view: room.playerView(player.side),
@@ -74,8 +88,9 @@ export function createGameServer({ port = 8080 } = {}) {
 
   wss.on('connection', socket => {
     socket.on('message', raw => {
+      let message = null;
       try {
-        const message = JSON.parse(String(raw));
+        message = JSON.parse(String(raw));
         const commandType = message?.command?.type;
 
         if ((commandType === 'room.create' || commandType === 'room.join' || commandType === 'game.resync') &&
@@ -170,6 +185,7 @@ export function createGameServer({ port = 8080 } = {}) {
           protocolVersion: 1,
           gameVersion: '0.4',
           code,
+          commandId: message?.commandId ?? null,
           message: error.message,
           roomId: context?.roomId ?? null,
           revision: context ? rooms.get(context.roomId)?.game?.revision ?? 0 : 0,
@@ -204,10 +220,11 @@ export function createGameServer({ port = 8080 } = {}) {
     httpServer,
     wss,
     async start() {
-      await new Promise(resolve => httpServer.listen(port, '127.0.0.1', resolve));
+      await new Promise(resolve => httpServer.listen(port, host, resolve));
       return httpServer.address().port;
     },
     async stop() {
+      clearInterval(heartbeatTimer);
       await new Promise(resolve => wss.close(resolve));
       await new Promise(resolve => httpServer.close(resolve));
     },
