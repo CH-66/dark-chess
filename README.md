@@ -1,6 +1,6 @@
 # 随机暗棋（Random Dark Chinese Chess）
 
-一个基于标准中国象棋棋盘的暗棋变体原型。
+一个基于标准中国象棋棋盘的随机暗棋游戏。
 
 ## 当前规则核心
 
@@ -28,17 +28,32 @@
 - 桌面端与移动端自适应布局；
 - reduced-motion 动画降级。
 
+## V0.4：本地体验打磨 + 联网对战架构
+
+V0.4 的重点不是立即上线匹配系统，而是先把本地规则、UI 和未来网络层的边界固定下来：
+
+- 保持 `src/game.js` 为纯规则核心；
+- 为 LocalSession / OnlineSession 预留统一会话边界；
+- 固定 command + revision + event 协议模型；
+- 服务端权威判定；
+- 对手暗棋真实身份只在服务端保存并按玩家视图过滤；
+- 为断线重连、事件补偿、回放预留字段；
+- 本地体验验收清单覆盖操作反馈、移动端、可访问性和对局信息。
+
+详细设计见：
+
+- `docs/V0.4_ARCHITECTURE.md`
+- `docs/V0.4_ACCEPTANCE.md`
+
 ## 运行
 
-这是零依赖静态原型。由于浏览器对 `file://` 下的 ES Module 有访问限制，建议通过静态服务器运行。
-
-可以在仓库根目录启动任意静态服务器：
+本地模式仍可作为静态页面独立运行；联网模式需要 Node.js + WebSocket 服务端。由于浏览器对 `file://` 下的 ES Module 有访问限制，建议通过仓库自带服务运行。
 
 ```bash
-python3 -m http.server 8080
+node server/index.js
 ```
 
-然后访问 http://localhost:8080/。
+然后访问 http://127.0.0.1:8080/。
 
 ## 规则测试
 
@@ -74,7 +89,7 @@ npm run test:e2e
 - 纯函数状态更新；
 - 固定种子可复现。
 
-GitHub Actions 会在 push / pull request 时自动执行规则测试、内建 coverage 与 Chromium E2E；当前高强度验证为 46/46 规则测试 + 8/8 浏览器测试通过。
+GitHub Actions 会在 push / pull request 时自动执行规则测试、内建 coverage 与 Chromium E2E。
 
 ## 目录
 
@@ -86,7 +101,9 @@ GitHub Actions 会在 push / pull request 时自动执行规则测试、内建 c
 ├── README.md
 ├── docs/
 │   ├── RULES.md
-│   └── IMPLEMENTATION.md
+│   ├── IMPLEMENTATION.md
+│   ├── V0.4_ARCHITECTURE.md
+│   └── V0.4_ACCEPTANCE.md
 ├── index.html
 ├── package.json
 ├── src/
@@ -99,6 +116,6 @@ GitHub Actions 会在 push / pull request 时自动执行规则测试、内建 c
 
 ## 原型定位
 
-当前版本是本地双人（Hot Seat）规则验证原型，重点验证“位置类型 → 首次行动 → 翻开 → 真实类型接管”的核心循环。
+当前 V0.4 已建立本地 Session 与最小联网对战服务端边界：本地模式仍可独立运行，联网模式由 WebSocket + Room + AuthoritativeGame 驱动。
 
-如果进入联网对战阶段，需要把真实棋子身份放到服务端，避免浏览器端通过开发者工具直接查看对手暗棋的真实身份。
+联网实现必须由服务端维护真实棋子身份并执行权威规则判定，浏览器只能获得当前玩家有权看到的信息。

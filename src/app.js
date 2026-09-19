@@ -271,3 +271,27 @@ if (new URLSearchParams(window.location.search).get('e2e') === '1') {
     },
   };
 }
+
+if (new URLSearchParams(window.location.search).get('e2e') === 'network') {
+  const { createOnlineSession } = await import('./session.js');
+  const params = new URLSearchParams(window.location.search);
+  const roomId = params.get('room');
+  const session = createOnlineSession(null, { roomId });
+  await session.connect();
+  window.__DARK_CHESS_E2E_NETWORK__ = {
+    ready: true,
+    connected: session.connected,
+    session,
+    info: () => ({ roomId: session.roomId, playerId: session.playerId, side: session.side, connected: session.connected, revision: session.revision }),
+    getView: () => session.getView(),
+    move: (id, x, y) => session.move(id, x, y),
+    reveal: id => session.reveal(id),
+    legalTargets: id => session.getLegalTargets(id),
+    resync: () => session.resync(),
+    disconnect: () => session.disconnect(),
+    reconnect: () => session.reconnect(),
+  };
+  session.subscribe(() => {
+    window.__DARK_CHESS_E2E_NETWORK__.connected = session.connected;
+  });
+}
