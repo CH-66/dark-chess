@@ -555,6 +555,10 @@ attachSession(session, 'local');
 
 const initialParams = new URLSearchParams(window.location.search);
 const isNetworkE2E = initialParams.get('e2e') === 'network';
+const isOnlineUITest = initialParams.get('e2e') === 'online-ui';
+if (isNetworkE2E || isOnlineUITest) {
+  window.__DARK_CHESS_E2E_NETWORK_DISCONNECT__ = () => session.disconnect();
+}
 if (initialParams.get('room') || initialParams.get('mode') === 'online' || isNetworkE2E) {
   await switchToOnline();
 }
