@@ -8,6 +8,7 @@ import {
   legalTargets,
   movePiece,
   revealInPlace,
+  hasAnyLegalAction,
 } from '../src/game.js';
 
 function stateWith(pieces, turn = SIDE.RED) {
@@ -213,36 +214,50 @@ test('被将军且无合法行动时判定为将死并由攻击方获胜', () =>
 });
 
 test('未被将军且无合法行动时判和棋', () => {
-  const pieces = [
+  const state = stateWith([
     piece('king', SIDE.RED, 4, 9, { id: 'red-king' }),
-    piece('rook', SIDE.RED, 0, 1, { id: 'mover' }),
-    piece('pawn', SIDE.RED, 4, 3, { id: 'setup-pawn' }),
+    piece('king', SIDE.BLACK, 4, 0, { id: 'black-king' }),
+    piece('rook', SIDE.RED, 3, 2, { id: 'left-control' }),
+    piece('rook', SIDE.RED, 5, 2, { id: 'right-control' }),
+    piece('pawn', SIDE.RED, 4, 2, { id: 'center-control' }),
+  ], SIDE.BLACK);
+
+  assert.equal(isKingInCheck(state, SIDE.BLACK), false);
+  assert.equal(hasAnyLegalAction(state, SIDE.BLACK), false);
+});
+
+test('红方一步后使黑方进入无将且无合法行动的局面，判和棋', () => {
+  const state = stateWith([
+    piece('king', SIDE.RED, 4, 9, { id: 'red-king' }),
+    piece('pawn', SIDE.RED, 4, 3, { id: 'center-control' }),
     piece('rook', SIDE.RED, 3, 2, { id: 'left-control' }),
     piece('rook', SIDE.RED, 5, 2, { id: 'right-control' }),
     piece('king', SIDE.BLACK, 4, 0, { id: 'black-king' }),
-  ];
-  const state = stateWith(pieces);
+  ]);
 
-  const result = movePiece(state, 'mover', 0, 0);
-  assert.equal(result.capturedKing, false);
-  assert.equal(result.state.turn, SIDE.BLACK);
-  assert.equal(result.state.gameOver, false);
+  assert.equal(isKingInCheck(state, SIDE.BLACK), false);
+  assert.equal(hasAnyLegalAction(state, SIDE.BLACK), true);
 
-  const before = structuredClone(result.state);
-  const setup = before.pieces.find(p => p.id === 'setup-pawn');
-  setup.x = 4;
-  setup.y = 2;
+  const result = movePiece(state, 'center-control', 4, 2);
 
-  const stalemate = {
-    ...before,
-    pieces: before.pieces.map(p => p.id === 'setup-pawn' ? setup : p),
-  };
-
-  assert.equal(isKingInCheck(stalemate, SIDE.BLACK), false);
-  assert.equal(stalemate.pieces.find(p => p.id === 'black-king').x, 4);
-  assert.equal(stalemate.pieces.find(p => p.id === 'black-king').y, 0);
+  assert.equal(result.state.gameOver, true);
+  assert.equal(result.state.outcome, 'STALEMATE');
+  assert.equal(result.state.winner, null);
 });
 
+test('hasAnyLegalAction：将军状态不能靠原地翻棋解除', () => {
+  const redKing = piece('king', SIDE.RED, 4, 9, { id: 'red-king' });
+  const blackRook = piece('rook', SIDE.BLACK, 4, 0, { id: 'black-rook' });
+  const hidden = piece('pawn', SIDE.RED, 2, 8, {
+    id: 'hidden',
+    originalType: 'pawn',
+    actualType: 'cannon',
+    revealed: false,
+  });
+  const state = stateWith([redKing, blackRook, hidden]);
+
+  assert.equal(hasAnyLegalAction(state, SIDE.RED), false);
+});
 test('hasAnyLegalAction：将军状态不能靠原地翻棋解除', async () => {
   const module = await import('../src/game.js');
   const redKing = piece('king', SIDE.RED, 4, 9, { id: 'red-king' });
