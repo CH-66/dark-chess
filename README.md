@@ -113,3 +113,6 @@ GitHub Actions 会在 push / pull request 时自动执行规则测试、内建 c
 - 该原型为零构建静态站点，直接部署仓库根目录即可。
 
 首次使用前，需要在 GitHub Actions Secrets 配置 `TCB_ENV_ID`、`TCB_SECRET_ID`、`TCB_SECRET_KEY`。配置完成后，推送到 `main` 会自动部署到 CloudBase。
+
+
+<!-- CloudBase production deployment trigger -->
