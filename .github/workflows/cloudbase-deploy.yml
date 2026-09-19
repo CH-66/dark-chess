@@ -305,36 +305,29 @@ jobs:
             waitUntil: 'domcontentloaded',
           });
 
-          let currentStatus = first?.status() ?? null;
+          const firstStatus = first?.status() ?? null;
           let info = await inspect();
+          const hadAccessReminder =
+            info.title.includes('风险提醒') || info.body.includes('确定访问');
 
-          if (info.title.includes('风险提醒') || info.body.includes('确定访问')) {
+          if (hadAccessReminder) {
             const enter = page.getByText('确定访问', { exact: true }).first();
             await enter.waitFor({ state: 'visible', timeout: 5_000 });
             await enter.click();
             await page.waitForLoadState('domcontentloaded').catch(() => {});
             await page.waitForTimeout(500);
+            // The access reminder is an expected CloudBase default-domain response.
+            // Start browser error collection after entering the actual game page.
+            consoleErrors.length = 0;
+            pageErrors.length = 0;
             info = await inspect();
-            currentStatus = 200;
           }
 
-          console.log(JSON.stringify({
-            firstStatus: first?.status() ?? null,
-            finalStatus: currentStatus,
-            finalUrl: info.url,
-            title: info.title,
-            hasGameText: info.body.includes('随机暗棋'),
-            boardCount: info.boardCount,
-            pieceCount: info.pieceCount,
-            consoleErrors,
-            pageErrors,
-          }, null, 2));
-
+          if (!hadAccessReminder && firstStatus !== 200) {
+            throw new Error('Unexpected home status: ' + firstStatus);
+          }
           if (info.title.includes('风险提醒') || info.body.includes('确定访问')) {
             throw new Error('CloudBase access reminder was not cleared');
-          }
-          if (currentStatus !== 200) {
-            throw new Error('Final home status: ' + currentStatus);
           }
           if (!info.body.includes('随机暗棋')) {
             throw new Error('Game page content not loaded');
@@ -346,13 +339,22 @@ jobs:
             throw new Error('Expected at least 32 pieces, got ' + info.pieceCount);
           }
           if (consoleErrors.length || pageErrors.length) {
-            throw new Error('Browser errors: ' + JSON.stringify({ consoleErrors, pageErrors }));
+            throw new Error('Browser errors after entering game: ' + JSON.stringify({ consoleErrors, pageErrors }));
           }
 
           const refresh = await page.reload({ waitUntil: 'domcontentloaded' });
           const refreshInfo = await inspect();
 
           console.log(JSON.stringify({
+            firstStatus,
+            accessReminderDetected: hadAccessReminder,
+            finalUrl: info.url,
+            title: info.title,
+            hasGameText: info.body.includes('随机暗棋'),
+            boardCount: info.boardCount,
+            pieceCount: info.pieceCount,
+            consoleErrors,
+            pageErrors,
             refreshStatus: refresh?.status() ?? null,
             refreshUrl: refreshInfo.url,
             refreshTitle: refreshInfo.title,
