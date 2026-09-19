@@ -67,6 +67,7 @@ export class Room {
 
   command(playerId, sessionToken, message) {
     const player = this.getPlayer(playerId, sessionToken);
+    if (message.roomId !== this.roomId) throw new Error('房间不匹配');
     if (!this.game) throw new Error('等待第二名玩家加入');
 
     const commandId = message.commandId;
