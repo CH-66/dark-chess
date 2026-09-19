@@ -358,3 +358,23 @@ test('hasAnyLegalAction：非当前回合方也能按指定 side 检查行动', 
 
   assert.equal(hasAnyLegalAction(state, SIDE.BLACK), false);
 });
+
+
+test('帅自身所在格不视为自己的攻击目标', () => {
+  const redKing = piece('king', SIDE.RED, 4, 9, { id: 'red-king' });
+  const state = stateWith([redKing]);
+
+  assert.equal(isSquareAttacked(state, 4, 9, SIDE.RED), false);
+});
+
+test('完整红帅但缺少黑将时，终局检查短路到第二个帅/将存在性判断', () => {
+  const state = stateWith([
+    piece('king', SIDE.RED, 4, 9, { id: 'red-king' }),
+    piece('rook', SIDE.RED, 0, 9, { id: 'red-rook' }),
+  ], SIDE.RED);
+
+  const result = movePiece(state, 'red-rook', 0, 8);
+
+  assert.equal(result.state.gameOver, false);
+  assert.equal(result.state.turn, SIDE.BLACK);
+});
