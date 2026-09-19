@@ -387,3 +387,14 @@ test('远距离且不同列时，帅/将不直接攻击目标格', () => {
 
   assert.equal(isSquareAttacked(state, 0, 6, SIDE.BLACK), false);
 });
+
+
+test('终局状态下候选行动生成器直接短路', () => {
+  const state = stateWith([
+    piece('king', SIDE.RED, 4, 9, { id: 'red-king' }),
+    piece('rook', SIDE.BLACK, 4, 0, { id: 'black-rook' }),
+  ]);
+  const gameOver = { ...state, gameOver: true };
+
+  assert.equal(isSquareAttacked(gameOver, 4, 9, SIDE.BLACK), false);
+});
