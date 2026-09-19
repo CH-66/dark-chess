@@ -19,33 +19,40 @@ export class LocalSession {
   }
   getState() { return clone(this.state); }
   getView() { return clone(this.state); }
+  getStatus() {
+    return { status: 'local', connected: true, lastError: null, attempt: 0, maxAttempts: 0 };
+  }
   subscribe(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   select(pieceId) {
     const piece = this.state.pieces.find(p => p.id === pieceId && p.alive);
     this.state = { ...this.state, selectedId: piece && piece.side === this.state.turn
       ? (this.state.selectedId === pieceId ? null : pieceId) : this.state.selectedId };
-    this.#emit();
+    this.#emit({ type: 'selection.changed' });
   }
   move(pieceId, x, y) {
     const result = movePiece(this.state, pieceId, x, y);
     this.state = result.state;
     this.moveCount += 1;
-    this.#emit();
+    this.#emit({ type: result.capturedKing ? 'game.finished' : 'game.move.accepted' });
     return result;
   }
   reveal(pieceId) {
     this.state = revealInPlace(this.state, pieceId);
     this.moveCount += 1;
-    this.#emit();
+    this.#emit({ type: 'game.piece.revealed' });
     return this.getState();
   }
   restart(seed = null) {
     this.state = createGame(seed);
     this.moveCount = 0;
-    this.#emit();
+    this.#emit({ type: 'game.restarted' });
   }
   dispose() { this.listeners.clear(); }
-  #emit() { const snapshot = this.getState(); for (const listener of this.listeners) listener(snapshot); }
+  #emit(event) {
+    const snapshot = this.getState();
+    const status = this.getStatus();
+    for (const listener of this.listeners) listener(snapshot, status, event);
+  }
 }
 
 export class OnlineSession {
@@ -58,14 +65,32 @@ export class OnlineSession {
     this.state = null;
     this.revision = 0;
     this.connected = false;
+    this.connectionState = 'idle';
+    this.lastError = null;
     this.listeners = new Set();
     this.pending = new Map();
     this.connectPromise = null;
     this.socket = null;
+    this.intentionalClose = false;
+    this.reconnectTimer = null;
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = options.maxReconnectAttempts ?? 5;
   }
 
   getView() { return clone(this.state); }
   getState() { return this.getView(); }
+  getStatus() {
+    return {
+      status: this.connectionState,
+      connected: this.connected,
+      lastError: this.lastError,
+      attempt: this.reconnectAttempts,
+      maxAttempts: this.maxReconnectAttempts,
+      roomId: this.roomId,
+      playerId: this.playerId,
+      side: this.side,
+    };
+  }
   subscribe(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
 
   select(pieceId) {
@@ -73,7 +98,7 @@ export class OnlineSession {
     const piece = this.state.pieces.find(p => p.id === pieceId && p.alive);
     if (!piece || piece.side !== this.state.turn || piece.side !== this.side) return;
     this.state = { ...this.state, selectedId: this.state.selectedId === pieceId ? null : pieceId };
-    this.#emit();
+    this.#emit({ type: 'selection.changed' });
   }
 
   getLegalTargets(pieceId) {
@@ -83,8 +108,13 @@ export class OnlineSession {
   }
 
   async connect() {
-    if (this.connected) return this;
+    if (this.connected && this.connectionState === 'connected') return this;
     if (this.connectPromise) return this.connectPromise;
+
+    this.intentionalClose = false;
+    this.connectionState = this.reconnectAttempts > 0 ? 'reconnecting' : 'connecting';
+    this.lastError = null;
+    this.#emit({ type: 'connection.connecting' });
 
     this.connectPromise = new Promise((resolve, reject) => {
       const socket = new WebSocket(this.endpoint);
@@ -93,25 +123,56 @@ export class OnlineSession {
 
       socket.addEventListener('open', async () => {
         this.connected = true;
+        this.connectionState = 'connecting';
+        this.lastError = null;
+        this.#emit({ type: 'connection.open' });
         try {
-          if (this.roomId && this.playerId && this.sessionToken) await this.joinRoom(this.roomId, this.playerId, this.sessionToken);
-          else if (this.roomId) await this.joinRoom(this.roomId);
-          else await this.createRoom();
+          if (this.roomId && this.playerId && this.sessionToken) {
+            await this.joinRoom(this.roomId, this.playerId, this.sessionToken);
+          } else if (this.roomId) {
+            await this.joinRoom(this.roomId);
+          } else {
+            await this.createRoom();
+          }
+          this.connectionState = 'connected';
+          this.reconnectAttempts = 0;
+          this.lastError = null;
+          this.#emit({ type: 'connection.ready' });
           settled = true;
           resolve(this);
         } catch (error) {
+          this.lastError = error.message;
+          this.connectionState = 'error';
+          this.#emit({ type: 'connection.error', error });
           settled = true;
           reject(error);
+          socket.close();
         } finally {
           this.connectPromise = null;
         }
       });
 
-      socket.addEventListener('message', event => this.#handleMessage(JSON.parse(event.data)));
-      socket.addEventListener('close', () => { this.connected = false; this.#emit(); });
+      socket.addEventListener('message', event => {
+        try {
+          this.#handleMessage(JSON.parse(event.data));
+        } catch (error) {
+          this.lastError = error.message || '网络消息解析失败';
+          this.#emit({ type: 'connection.error', error });
+        }
+      });
+
+      socket.addEventListener('close', () => {
+        this.connected = false;
+        this.connectionState = 'disconnected';
+        this.#emit({ type: 'connection.closed' });
+        if (!this.intentionalClose) this.#scheduleReconnect();
+      });
+
       socket.addEventListener('error', () => {
-        if (!settled && !this.connected) reject(new Error('WebSocket 连接失败'));
-        this.#emit();
+        const error = new Error('WebSocket 连接失败');
+        this.lastError = error.message;
+        if (!settled && !this.connected) reject(error);
+        this.#emit({ type: 'connection.error', error });
       });
     });
 
@@ -132,8 +193,13 @@ export class OnlineSession {
     );
   }
 
-  async move(pieceId, x, y) { return this.#sendGameCommand({ type: 'game.move', pieceId, to: { x, y } }); }
-  async reveal(pieceId) { return this.#sendGameCommand({ type: 'game.reveal', pieceId }); }
+  async move(pieceId, x, y) {
+    return this.#sendGameCommand({ type: 'game.move', pieceId, to: { x, y } });
+  }
+
+  async reveal(pieceId) {
+    return this.#sendGameCommand({ type: 'game.reveal', pieceId });
+  }
 
   async resync() {
     await this.#ensureConnected();
@@ -144,20 +210,31 @@ export class OnlineSession {
   }
 
   async reconnect() {
-    if (this.connected) return this;
+    this.intentionalClose = false;
+    this.reconnectAttempts = 0;
+    if (this.connected && this.connectionState === 'connected') return this;
+    this.#clearReconnectTimer();
     return this.connect();
   }
 
-  disconnect() { this.socket?.close(); }
+  disconnect() {
+    this.intentionalClose = true;
+    this.#clearReconnectTimer();
+    this.socket?.close();
+  }
 
   dispose() {
+    this.intentionalClose = true;
+    this.#clearReconnectTimer();
     for (const pending of this.pending.values()) pending.reject(new Error('session disposed'));
     this.pending.clear();
     this.listeners.clear();
     this.socket?.close();
   }
 
-  async restart() { throw new Error('联网对局不支持客户端重开，请由房间服务端发起'); }
+  async restart() {
+    throw new Error('联网对局不支持客户端重开，请离开房间后重新创建对局');
+  }
 
   async #sendGameCommand(command) {
     await this.#ensureConnected();
@@ -171,13 +248,19 @@ export class OnlineSession {
     return this.#waitForCommand(envelope, message => message.commandId === envelope.commandId);
   }
 
-  async #ensureConnected() { if (!this.connected) await this.connect(); }
+  async #ensureConnected() {
+    if (!this.connected) await this.connect();
+  }
 
   #waitForCommand(message, matcher) {
     return new Promise((resolve, reject) => {
       this.pending.set(message.commandId, { resolve, reject, matcher });
-      try { this.#sendRaw(message); }
-      catch (error) { this.pending.delete(message.commandId); reject(error); }
+      try {
+        this.#sendRaw(message);
+      } catch (error) {
+        this.pending.delete(message.commandId);
+        reject(error);
+      }
     });
   }
 
@@ -190,15 +273,18 @@ export class OnlineSession {
     if (message.roomId) this.roomId = message.roomId;
     if (message.playerId) this.playerId = message.playerId;
     if (message.sessionToken) this.sessionToken = message.sessionToken;
-    if (message.side) this.side = message.side;
+    if (message.side ?? message.playerSide) this.side = message.side ?? message.playerSide;
     if (Number.isInteger(message.revision)) this.revision = message.revision;
     if (message.view) this.state = clone(message.view);
 
-    if (message.type === 'error' && message.commandId && this.pending.has(message.commandId)) {
-      const pending = this.pending.get(message.commandId);
-      this.pending.delete(message.commandId);
-      pending.reject(new Error(message.message));
-      this.#emit();
+    if (message.type === 'error') {
+      this.lastError = message.message || '服务端拒绝了请求';
+      if (message.commandId && this.pending.has(message.commandId)) {
+        const pending = this.pending.get(message.commandId);
+        this.pending.delete(message.commandId);
+        pending.reject(new Error(this.lastError));
+      }
+      this.#emit({ type: 'server.error', error: new Error(this.lastError), message });
       return;
     }
 
@@ -210,12 +296,40 @@ export class OnlineSession {
         break;
       }
     }
-    this.#emit();
+
+    if (message.type === 'connection.ready' || message.type === 'room.created' ||
+        message.type === 'room.joined' || message.type === 'player.joined' ||
+        message.type === 'player.reconnected' || message.type === 'game.started') {
+      this.lastError = null;
+    }
+    this.#emit({ type: message.type, message });
   }
 
-  #emit() {
+  #scheduleReconnect() {
+    if (this.intentionalClose || this.reconnectTimer || this.reconnectAttempts >= this.maxReconnectAttempts) return;
+    this.reconnectAttempts += 1;
+    const delay = Math.min(1000 * (2 ** (this.reconnectAttempts - 1)), 8000);
+    this.connectionState = 'reconnecting';
+    this.#emit({ type: 'connection.reconnecting' });
+    this.reconnectTimer = globalThis.setTimeout(async () => {
+      this.reconnectTimer = null;
+      try {
+        await this.connect();
+      } catch {
+        this.#scheduleReconnect();
+      }
+    }, delay);
+  }
+
+  #clearReconnectTimer() {
+    if (this.reconnectTimer) globalThis.clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+  }
+
+  #emit(event) {
     const snapshot = this.getView();
-    for (const listener of this.listeners) listener(snapshot);
+    const status = this.getStatus();
+    for (const listener of this.listeners) listener(snapshot, status, event);
   }
 }
 
@@ -226,5 +340,7 @@ export function getLegalTargets(session, pieceId) {
   const state = session.getView();
   const piece = state?.pieces?.find(p => p.id === pieceId && p.alive);
   if (!piece) return [];
-  return typeof session.getLegalTargets === 'function' ? session.getLegalTargets(pieceId) : legalTargets(state, piece);
+  return typeof session.getLegalTargets === 'function'
+    ? session.getLegalTargets(pieceId)
+    : legalTargets(state, piece);
 }
