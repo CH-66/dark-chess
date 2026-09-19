@@ -108,4 +108,12 @@ test.describe('第三阶段：联网棋盘 UI', () => {
     await redContext.close();
     await blackContext.close();
   });
-});
+  test('加入不存在房间 → 页面展示网络错误并保留重新连接入口', async ({ page }) => {
+    await enterOnline(page);
+    await page.getByTestId('room-input').fill('ZZZZZZZZ');
+    await page.getByTestId('join-room').click();
+    await expect(page.getByTestId('network-error')).toBeVisible();
+    await expect(page.getByTestId('network-error')).toContainText('网络提示');
+    await expect(page.getByTestId('network-status')).toHaveClass(/status-error|status-reconnecting/);
+  });
+\n});
