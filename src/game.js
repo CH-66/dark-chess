@@ -274,9 +274,9 @@ export function hasAnyLegalAction(state, side = state.turn) {
   const checked = isKingInCheck(view, side);
 
   for (const piece of view.pieces) {
-    if (!piece.alive || piece.side !== side) continue;
+    if (!piece.alive) continue;
 
-    if (legalTargets(view, piece).length > 0) return true;
+    if (piece.side === side && legalTargets(view, piece).length > 0) return true;
 
     if (!checked && !piece.revealed) {
       // 原地翻棋本身就是一个合法行动；只有非将军状态下才能使用。
@@ -327,16 +327,16 @@ export function isLegalTarget(state, piece, x, y) {
 export function revealInPlace(state, pieceId) {
   const next = structuredClone(state);
   const piece = next.pieces.find(p => p.id === pieceId && p.alive);
-  if (!piece || piece.side !== next.turn || piece.revealed || next.gameOver) {
+  if (!piece || piece.revealed || next.gameOver) {
     throw new Error('非法翻棋');
   }
-  if (isKingInCheck(next, piece.side)) {
+  if (isKingInCheck(next, next.turn)) {
     throw new Error('当前被将军，不能原地翻棋，必须先解除将军');
   }
 
   piece.revealed = true;
   next.selectedId = null;
-  return finishTurn(next, piece.side);
+  return finishTurn(next, next.turn);
 }
 
 export function movePiece(state, pieceId, x, y) {

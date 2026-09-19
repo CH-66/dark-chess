@@ -246,6 +246,20 @@ test('红方一步后使黑方进入无将且无合法行动的局面，判和�
   assert.equal(result.state.winner, null);
 });
 
+test('hasAnyLegalAction：当前方没有暗棋时，对方暗棋仍可作为翻棋行动', () => {
+  const redKing = piece('king', SIDE.RED, 4, 9, { id: 'red-king' });
+  const blackKing = piece('king', SIDE.BLACK, 4, 0, { id: 'black-king' });
+  const blackHidden = piece('pawn', SIDE.BLACK, 0, 0, {
+    id: 'black-hidden',
+    originalType: 'pawn',
+    actualType: 'rook',
+    revealed: false,
+  });
+  const state = stateWith([redKing, blackKing, blackHidden], SIDE.RED);
+
+  assert.equal(hasAnyLegalAction(state, SIDE.RED), true);
+});
+
 test('hasAnyLegalAction：将军状态不能靠原地翻棋解除', () => {
   const redKing = piece('king', SIDE.RED, 4, 9, { id: 'red-king' });
   const redLeftBlocker = piece('rook', SIDE.RED, 3, 9, { id: 'left-blocker' });

@@ -27,7 +27,8 @@ export class LocalSession {
   subscribe(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   select(pieceId) {
     const piece = this.state.pieces.find(p => p.id === pieceId && p.alive);
-    this.state = { ...this.state, selectedId: piece && piece.side === this.state.turn
+    const selectable = piece && (piece.side === this.state.turn || !piece.revealed);
+    this.state = { ...this.state, selectedId: selectable
       ? (this.state.selectedId === pieceId ? null : pieceId) : this.state.selectedId };
     this.#emit({ type: 'selection.changed' });
   }
@@ -97,8 +98,10 @@ export class OnlineSession {
 
   select(pieceId) {
     if (!this.state) return;
+    if (this.state.turn !== this.side) return;
     const piece = this.state.pieces.find(p => p.id === pieceId && p.alive);
-    if (!piece || piece.side !== this.state.turn || piece.side !== this.side) return;
+    const selectable = piece && (piece.side === this.side || !piece.revealed);
+    if (!selectable) return;
     this.state = { ...this.state, selectedId: this.state.selectedId === pieceId ? null : pieceId };
     this.#emit({ type: 'selection.changed' });
   }

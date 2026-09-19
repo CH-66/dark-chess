@@ -133,6 +133,24 @@ test('原地翻棋会公开身份并换手', () => {
   assert.equal(next.turn, SIDE.BLACK);
 });
 
+test('当前回合可以原地翻开对方暗棋，并由当前方结束回合', () => {
+  const ownKing = piece('king', SIDE.RED, 4, 9, { id: 'red-king' });
+  const opponentHidden = piece('pawn', SIDE.BLACK, 4, 1, {
+    id: 'black-hidden',
+    originalType: 'pawn',
+    actualType: 'rook',
+    revealed: false,
+  });
+  const blackKing = piece('king', SIDE.BLACK, 4, 0, { id: 'black-king' });
+  const state = stateWith([ownKing, opponentHidden, blackKing], SIDE.RED);
+
+  const next = revealInPlace(state, 'black-hidden');
+
+  assert.equal(next.pieces.find(p => p.id === 'black-hidden').revealed, true);
+  assert.equal(next.pieces.find(p => p.id === 'black-hidden').actualType, 'rook');
+  assert.equal(next.turn, SIDE.BLACK);
+});
+
 test('翻开后的炮按真实身份行动，并遵守炮架规则', () => {
   const cannon = piece('cannon', SIDE.RED, 0, 5, {
     id: 'cannon',
