@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { WebSocketServer } from 'ws';
+import { WebSocket, WebSocketServer } from 'ws';
 import { isValidCommandEnvelope } from '../src/protocol.js';
 import { Room } from './room.js';
 import { assertNoHiddenIdentityLeak } from './visibility.js';
@@ -41,7 +41,7 @@ export function createGameServer({ port = 8080 } = {}) {
   const sockets = new Map();
 
   function send(socket, message) {
-    if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(message));
+    if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
   }
 
   function broadcastRoom(room, builder) {
