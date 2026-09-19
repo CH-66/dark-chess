@@ -63,10 +63,10 @@
       <div class="game-card">
         <div class="statusbar">
           <div>
-            <div id="turnText" class="turn">红方回合</div>
-            <div id="hintText" class="hint">选择一枚己方棋子开始行动</div>
+            <div id="turnText" class="turn" data-testid="turnText">红方回合</div>
+            <div id="hintText" class="hint" data-testid="hintText">选择一枚己方棋子开始行动</div>
           </div>
-          <div id="phaseText" class="phase">对局进行中</div>
+          <div id="phaseText" class="phase" data-testid="phaseText">对局进行中</div>
         </div>
 
         <div class="board-wrap">
@@ -103,7 +103,7 @@
         <section class="panel log-panel">
           <div class="panel-title">
             <h2>对局记录</h2>
-            <span id="moveCount" class="muted">0 手</span>
+            <span id="moveCount" class="muted" data-testid="moveCount">0 手</span>
           </div>
           <div id="log" class="log" aria-live="polite"></div>
         </section>
