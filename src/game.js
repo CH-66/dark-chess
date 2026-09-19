@@ -122,10 +122,14 @@ function palaceContains(side, x, y) {
     : x >= 3 && x <= 5 && y >= 0 && y <= 2;
 }
 
-export function legalTargets(state, piece) {
-  if (!piece || !piece.alive || state.gameOver || piece.side !== state.turn) return [];
+function movementTypeOf(piece) {
+  return piece.revealed ? piece.actualType : piece.originalType;
+}
 
-  const movementType = piece.revealed ? piece.actualType : piece.originalType;
+function candidateTargets(state, piece) {
+  if (!piece || !piece.alive || state.gameOver) return [];
+
+  const movementType = movementTypeOf(piece);
   const out = [];
 
   if (movementType === 'king') {
@@ -205,6 +209,63 @@ export function legalTargets(state, piece) {
   return out;
 }
 
+function kingAttacksSquare(state, king, x, y) {
+  const distance = Math.abs(king.x - x) + Math.abs(king.y - y);
+  if (distance === 0) return false;
+  if (distance === 1) return true;
+  if (king.x !== x) return false;
+
+  const start = Math.min(king.y, y) + 1;
+  const end = Math.max(king.y, y);
+  for (let row = start; row < end; row += 1) {
+    if (pieceAt(state, x, row)) return false;
+  }
+  return true;
+}
+
+export function isSquareAttacked(state, x, y, bySide) {
+  return state.pieces.some(piece => {
+    if (!piece.alive || piece.side !== bySide) return false;
+
+    if (movementTypeOf(piece) === 'king' && kingAttacksSquare(state, piece, x, y)) {
+      return true;
+    }
+
+    return candidateTargets(state, piece).some(
+      target => target.x === x && target.y === y
+    );
+  });
+}
+
+export function isKingInCheck(state, side) {
+  const king = state.pieces.find(
+    piece => piece.alive && piece.side === side && piece.actualType === 'king'
+  );
+  return Boolean(king && isSquareAttacked(state, king.x, king.y, opposite(side)));
+}
+
+function simulateMove(state, pieceId, x, y) {
+  const next = structuredClone(state);
+  const piece = next.pieces.find(p => p.id === pieceId && p.alive);
+  const captured = pieceAt(next, x, y);
+
+  piece.x = x;
+  piece.y = y;
+  if (captured) captured.alive = false;
+  if (!piece.revealed) piece.revealed = true;
+
+  return next;
+}
+
+export function legalTargets(state, piece) {
+  if (!piece || !piece.alive || state.gameOver || piece.side !== state.turn) return [];
+
+  return candidateTargets(state, piece).filter(target => {
+    const simulated = simulateMove(state, piece.id, target.x, target.y);
+    return !isKingInCheck(simulated, piece.side);
+  });
+}
+
 export function isLegalTarget(state, piece, x, y) {
   return legalTargets(state, piece).some(target => target.x === x && target.y === y);
 }
@@ -215,6 +276,10 @@ export function revealInPlace(state, pieceId) {
   if (!piece || piece.side !== next.turn || piece.revealed || next.gameOver) {
     throw new Error('非法翻棋');
   }
+  if (isKingInCheck(next, piece.side)) {
+    throw new Error('当前被将军，不能原地翻棋，必须先解除将军');
+  }
+
   piece.revealed = true;
   next.selectedId = null;
   next.turn = opposite(next.turn);

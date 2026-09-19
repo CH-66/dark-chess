@@ -1,4 +1,4 @@
-# 原型实现说明 V0.3
+# 原型实现说明 V0.4
 
 ## 技术方案
 
@@ -49,9 +49,41 @@ REVEALED
   └── capture king ────────────────> GAME_OVER
 ```
 
-其中最关键的规则是：
+其中最关键的两条规则是：
 
 > 暗棋第一次行动使用 `originalType`；翻开后立即切换为 `actualType`。
+
+> 任何落子完成后的局面都必须保证己方帅/将没有受到攻击。
+
+## 不能送将的实现
+
+规则引擎拆成“候选走法”和“安全走法”两层，避免攻击判断与回合合法性互相污染。
+
+```text
+candidateTargets()
+      ↓
+simulateMove()
+      ↓
+isKingInCheck()
+      ↓
+legalTargets()
+      ↓
+movePiece()
+```
+
+- `candidateTargets()`：只计算棋子按照当前可执行类型的基础走法，不检查回合。
+- `simulateMove()`：复制局面并模拟移动、吃子以及暗棋移动后的翻开。
+- `isSquareAttacked()`：判断一个格点是否受到指定阵营攻击。
+- `isKingInCheck()`：定位该方帅/将并调用攻击判定。
+- `legalTargets()`：过滤掉所有模拟后会让己方帅/将被攻击的目标。
+
+攻击类型规则：
+
+- 未翻开暗棋使用 `originalType`；
+- 已翻开棋子使用 `actualType`；
+- 帅/将除一步攻击外，还检查同列无子遮挡的“将帅照面”。
+
+因此前端高亮不会出现“送将”目标，而 `movePiece()` 最终也通过 `legalTargets()` 再次校验。
 
 ## 当前已实现
 
