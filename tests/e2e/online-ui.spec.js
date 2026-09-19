@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 async function enterOnline(page) {
-  await page.goto('/?mode=online');
+  await page.goto('/?mode=online&e2e=online-ui');
   await expect(page.getByTestId('mode-online')).toHaveClass(/active/);
 }
 
@@ -35,8 +35,8 @@ test.describe('第三阶段：联网棋盘 UI', () => {
     await joinRoom(black, roomId);
     await expect(black.getByTestId('player-side')).toHaveText('黑方');
 
-    await expect(red.getByTestId('board .piece')).toHaveCount(32);
-    await expect(black.getByTestId('board .piece')).toHaveCount(32);
+    await expect(red.locator('[data-testid="board"] .piece')).toHaveCount(32);
+    await expect(black.locator('[data-testid="board"] .piece')).toHaveCount(32);
     await expect(red.getByTestId('waiting-text')).toBeHidden();
     await expect(black.getByTestId('waiting-text')).toBeHidden();
 
@@ -52,10 +52,10 @@ test.describe('第三阶段：联网棋盘 UI', () => {
 
     const roomId = await createRoom(red);
     await joinRoom(black, roomId);
-    await expect(red.getByTestId('board .piece.red.hidden')).toHaveCount(15);
-    await expect(black.getByTestId('board .piece.black.hidden')).toHaveCount(15);
+    await expect(red.locator('[data-testid="board"] .piece.red.hidden')).toHaveCount(15);
+    await expect(black.locator('[data-testid="board"] .piece.black.hidden')).toHaveCount(15);
 
-    await red.getByTestId('board .piece.red.hidden').first().click();
+    await red.locator('[data-testid="board"] .piece.red.hidden').first().click();
     await expect(red.getByTestId('reveal')).toBeEnabled();
     await red.getByTestId('reveal').click();
     await expect(red.getByTestId('turnText')).toHaveText('黑方回合');
@@ -63,7 +63,7 @@ test.describe('第三阶段：联网棋盘 UI', () => {
     await expect(red.getByTestId('moveCount')).toHaveText('1 手');
     await expect(black.getByTestId('moveCount')).toHaveText('1 手');
 
-    const blackHidden = black.getByTestId('board .piece.black.hidden').first();
+    const blackHidden = black.locator('[data-testid="board"] .piece.black.hidden').first();
     await blackHidden.click();
     await expect(black.locator('.target-cell')).not.toHaveCount(0);
     const target = black.locator('.target-cell').first();
@@ -89,7 +89,7 @@ test.describe('第三阶段：联网棋盘 UI', () => {
     const roomId = await createRoom(red);
     await joinRoom(black, roomId);
 
-    await red.getByTestId('board .piece.red.hidden').first().click();
+    await red.locator('[data-testid="board"] .piece.red.hidden').first().click();
     await red.getByTestId('reveal').click();
     await expect(red.getByTestId('moveCount')).toHaveText('1 手');
     await expect(black.getByTestId('moveCount')).toHaveText('1 手');
