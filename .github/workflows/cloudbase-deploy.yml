@@ -40,15 +40,18 @@ jobs:
           npm install -g @cloudbase/cli
           tcb --version
 
+      - name: Configure CloudBase site
+        run: |
+          if [ "$TCB_IS_INTL" = "true" ]; then
+            tcb config set isIntl true
+          fi
+
       - name: Login to CloudBase
         run: |
           tcb login --apiKeyId "$TCB_SECRET_ID" --apiKey "$TCB_SECRET_KEY"
 
       - name: Verify CloudBase environment
         run: |
-          if [ "$TCB_IS_INTL" = "true" ]; then
-            tcb config set isIntl true
-          fi
           tcb env detail -e "$TCB_ENV_ID"
 
       - name: Deploy static site
