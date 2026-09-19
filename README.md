@@ -118,6 +118,6 @@ GitHub Actions 会在 push / pull request 时自动执行规则测试、内建 c
 
 ## 原型定位
 
-当前版本仍以本地双人（Hot Seat）规则验证为基础，但 V0.4 已开始把联网对战作为独立 Session 层设计。
+当前 V0.4 已建立本地 Session 与最小联网对战服务端边界：本地模式仍可独立运行，联网模式由 WebSocket + Room + AuthoritativeGame 驱动。
 
 联网实现必须由服务端维护真实棋子身份并执行权威规则判定，浏览器只能获得当前玩家有权看到的信息。
