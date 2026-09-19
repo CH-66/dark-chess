@@ -42,6 +42,27 @@ test('Room：两人加入后才创建权威对局，并分别得到角色', () =
   assert.equal(room.game.revision, 0);
 });
 
+test('Room：当前玩家可以翻开对方暗棋', () => {
+  const room = new Room('ROOM-FLIP-OPPONENT');
+  const red = room.join({});
+  room.join({});
+  const opponentHidden = room.game.getState().pieces.find(p => p.side === 'BLACK' && !p.revealed);
+  assert.ok(opponentHidden);
+
+  const result = room.command(red.player.playerId, red.player.sessionToken, {
+    protocolVersion: 1,
+    gameVersion: '0.4',
+    roomId: room.roomId,
+    commandId: 'flip-opponent',
+    expectedRevision: 0,
+    command: { type: 'game.reveal', pieceId: opponentHidden.id },
+  });
+
+  assert.equal(result.revision, 1);
+  assert.equal(room.game.getState().pieces.find(p => p.id === opponentHidden.id).revealed, true);
+  assert.equal(room.game.getState().turn, SIDE.BLACK);
+});
+
 test('Room：过期 revision 被拒绝，重复 commandId 幂等', () => {
   const room = new Room('ROOM-TEST');
   const a = room.join({});
