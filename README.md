@@ -102,3 +102,14 @@ GitHub Actions 会在 push / pull request 时自动执行规则测试、内建 c
 当前版本是本地双人（Hot Seat）规则验证原型，重点验证“位置类型 → 首次行动 → 翻开 → 真实类型接管”的核心循环。
 
 如果进入联网对战阶段，需要把真实棋子身份放到服务端，避免浏览器端通过开发者工具直接查看对手暗棋的真实身份。
+
+## CloudBase 部署
+
+项目已接入 CloudBase 静态网站托管：
+
+- MCP 项目配置：`config/mcporter.json`
+- GitHub Actions 部署：`.github/workflows/cloudbase-deploy.yml`
+- 部署说明：`docs/CLOUDBASE_DEPLOYMENT.md`
+- 该原型为零构建静态站点，直接部署仓库根目录即可。
+
+首次使用前，需要在 GitHub Actions Secrets 配置 `TCB_ENV_ID`、`TCB_SECRET_ID`、`TCB_SECRET_KEY`。配置完成后，推送到 `main` 会自动部署到 CloudBase。
