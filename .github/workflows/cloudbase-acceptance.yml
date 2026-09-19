@@ -1,0 +1,67 @@
+name: CloudBase Public Acceptance
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    env:
+      TCB_ENV_ID: ${{ secrets.TCB_ENV_ID }}
+      TCB_SECRET_ID: ${{ secrets.TCB_SECRET_ID }}
+      TCB_SECRET_KEY: ${{ secrets.TCB_SECRET_KEY }}
+      TCB_IS_INTL: ${{ vars.TCB_IS_INTL || 'false' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Validate CloudBase credentials
+        run: |
+          test -n "$TCB_ENV_ID"
+          test -n "$TCB_SECRET_ID"
+          test -n "$TCB_SECRET_KEY"
+
+      - name: Install CloudBase CLI
+        run: |
+          npm install -g @cloudbase/cli
+          tcb --version
+
+      - name: Configure CloudBase site
+        run: |
+          if [ "$TCB_IS_INTL" = "true" ]; then
+            tcb config set isIntl true
+          fi
+
+      - name: Login
+        run: |
+          tcb login --apiKeyId "$TCB_SECRET_ID" --apiKey "$TCB_SECRET_KEY"
+
+      - name: Verify environment
+        run: |
+          tcb env detail -e "$TCB_ENV_ID"
+
+      - name: Deploy acceptance build
+        run: |
+          tcb hosting deploy . / -e "$TCB_ENV_ID" \
+            --ignore ".git,node_modules,.github,tests,docs,config,*.log" \
+            --verify
+
+      - name: Configure SPA documents
+        run: |
+          npm install --no-save --no-package-lock @cloudbase/manager-node
+          node .github/scripts/configure-cloudbase-hosting.mjs
+
+      - name: Capture hosting details
+        run: |
+          tcb hosting detail -e "$TCB_ENV_ID"
+          echo "==== PUBLIC URL DISCOVERY COMPLETE ===="
