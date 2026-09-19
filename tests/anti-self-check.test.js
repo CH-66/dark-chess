@@ -304,8 +304,16 @@ test('hasAnyLegalAction：未被将军时，暗棋即使当前不能移动也可
   const redBlockA = piece('pawn', SIDE.RED, 1, 0, { id: 'red-block-a' });
   const redBlockB = piece('pawn', SIDE.RED, 0, 1, { id: 'red-block-b' });
   const redKing = piece('king', SIDE.RED, 4, 9, { id: 'red-king' });
+  const redCenterBlocker = piece('pawn', SIDE.RED, 4, 5, { id: 'red-center-blocker' });
   const blackKing = piece('king', SIDE.BLACK, 4, 0, { id: 'black-king' });
-  const state = stateWith([blockedHidden, redBlockA, redBlockB, redKing, blackKing], SIDE.RED);
+  const state = stateWith([
+    blockedHidden,
+    redBlockA,
+    redBlockB,
+    redKing,
+    redCenterBlocker,
+    blackKing,
+  ], SIDE.RED);
 
   assert.equal(isKingInCheck(state, SIDE.RED), false);
   assert.deepEqual(legalTargets(state, blockedHidden), []);
