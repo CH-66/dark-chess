@@ -46,8 +46,9 @@ test('两浏览器上下文：同房间、不同视图、revision 同步、断�
   expect(Object.hasOwn(redHiddenOpponent, 'actualType')).toBeFalsy();
   expect(Object.hasOwn(blackHiddenSelf, 'actualType')).toBeFalsy();
 
-  const duplicate = await red.evaluate(id => window.__DARK_CHESS_E2E_NETWORK__.reveal(id), hiddenId);
-  expect(duplicate).toBeDefined();
+  const resync = await red.evaluate(() => window.__DARK_CHESS_E2E_NETWORK__.resync());
+  expect(resync.type).toBe('game.resync');
+  expect(resync.revision).toBe(1);
 
   await red.evaluate(() => window.__DARK_CHESS_E2E_NETWORK__.disconnect());
   await red.waitForFunction(() => window.__DARK_CHESS_E2E_NETWORK__.connected === false);
