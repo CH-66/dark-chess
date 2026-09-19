@@ -108,7 +108,13 @@ function render() {
     boardEl.appendChild(makePieceEl(piece));
   }
 
-  turnTextEl.textContent = state.gameOver ? sideName(state.winner) + '获胜' : sideName(state.turn) + '回合';
+  if (state.gameOver) {
+    turnTextEl.textContent = state.outcome === 'STALEMATE'
+      ? '和棋'
+      : sideName(state.winner) + '获胜';
+  } else {
+    turnTextEl.textContent = sideName(state.turn) + '回合';
+  }
   phaseTextEl.textContent = state.gameOver ? '对局结束' : busy ? '动画播放中' : '对局进行中';
   if (state.gameOver) hintTextEl.textContent = '点击“重新开局”开始下一盘';
   else if (selected) hintTextEl.textContent = selected.revealed ? '请选择一个高亮位置移动' : '按原始位置类型移动，或点击“原地翻开”';
@@ -197,6 +203,10 @@ async function animateMove(piece, target) {
 
   if (result.capturedKing) {
     addLog(sideName(piece.side) + '吃掉了对方帅/将，游戏结束。');
+  } else if (result.state.outcome === 'CHECKMATE') {
+    addLog(sideName(piece.side) + '将死对方，游戏结束。');
+  } else if (result.state.outcome === 'STALEMATE') {
+    addLog('双方无合法行动，本局和棋。');
   } else if (!piece.revealed) {
     const revealed = state.pieces.find(p => p.id === piece.id);
     addLog(sideName(piece.side) + '移动并翻开：' + visibleType(revealed) + (result.captured ? '（吃子）' : ''));
@@ -226,6 +236,11 @@ async function animateReveal() {
 
   const revealed = state.pieces.find(p => p.id === selected.id);
   addLog(sideName(selected.side) + '原地翻开：' + visibleType(revealed));
+  if (state.outcome === 'CHECKMATE') {
+    addLog(sideName(selected.side) + '将死对方，游戏结束。');
+  } else if (state.outcome === 'STALEMATE') {
+    addLog('双方无合法行动，本局和棋。');
+  }
 
   await delay(FLIP_MS / 2);
   busy = false;
