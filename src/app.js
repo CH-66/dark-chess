@@ -554,8 +554,9 @@ revealBtn.addEventListener('click', animateReveal);
 attachSession(session, 'local');
 
 const initialParams = new URLSearchParams(window.location.search);
-if (initialParams.get('room') || initialParams.get('mode') === 'online') {
-  switchToOnline();
+const isNetworkE2E = initialParams.get('e2e') === 'network';
+if (initialParams.get('room') || initialParams.get('mode') === 'online' || isNetworkE2E) {
+  await switchToOnline();
 }
 
 if (initialParams.get('e2e') === '1') {
@@ -577,14 +578,13 @@ if (initialParams.get('e2e') === '1') {
   };
 }
 
-if (initialParams.get('e2e') === 'network') {
-  window.__DARK_CHESS_E2E_NETWORK__ = {
-    ready: false,
-  };
-  window.setTimeout(() => {
-    if (mode === 'online' && session instanceof Object) {
-      window.__DARK_CHESS_E2E_NETWORK__.session = session;
-      window.__DARK_CHESS_E2E_NETWORK__.ready = true;
+if (isNetworkE2E) {
+  window.__DARK_CHESS_E2E_NETWORK__ = { ready: false };
+  busy = true;
+  try {
+    await session.connect();
+    window.__DARK_CHESS_E2E_NETWORK__.session = session;
+    window.__DARK_CHESS_E2E_NETWORK__.ready = true;
       window.__DARK_CHESS_E2E_NETWORK__.info = () => ({
         roomId: session.roomId,
         playerId: session.playerId,
@@ -600,11 +600,15 @@ if (initialParams.get('e2e') === 'network') {
       window.__DARK_CHESS_E2E_NETWORK__.disconnect = () => session.disconnect();
       window.__DARK_CHESS_E2E_NETWORK__.reconnect = () => session.reconnect();
       window.__DARK_CHESS_E2E_NETWORK__.connected = session.connected;
-      session.subscribe(() => {
-        if (window.__DARK_CHESS_E2E_NETWORK__) {
-          window.__DARK_CHESS_E2E_NETWORK__.connected = session.connected;
-        }
-      });
-    }
-  }, 0);
+    session.subscribe(() => {
+      if (window.__DARK_CHESS_E2E_NETWORK__) {
+        window.__DARK_CHESS_E2E_NETWORK__.connected = session.connected;
+      }
+    });
+  } catch (error) {
+    window.__DARK_CHESS_E2E_NETWORK__.error = error.message;
+  } finally {
+    busy = false;
+    render();
+  }
 }
