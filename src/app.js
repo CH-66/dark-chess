@@ -44,7 +44,6 @@ const FLIP_MS = 620;
 let mode = 'local';
 let session = createLocalSession();
 let busy = false;
-let localMoveCount = 0;
 let pendingRender = false;
 let lastLoggedRemoteRevision = 0;
 let networkStatus = session.getStatus();
@@ -54,7 +53,7 @@ function currentState() {
 }
 
 function getMoveCount(state = currentState()) {
-  return mode === 'online' ? (state?.revision ?? 0) : localMoveCount;
+  return mode === 'online' ? (state?.revision ?? 0) : (session.moveCount ?? 0);
 }
 
 function pointStyle(x, y) {
@@ -339,10 +338,6 @@ async function animateMove(piece, target) {
 
     if (mode === 'online') {
       lastLoggedRemoteRevision = after?.revision ?? lastLoggedRemoteRevision;
-    } else {
-      localMoveCount += 0;
-    }
-
     await delay(FLIP_MS / 2);
   } finally {
     busy = false;
@@ -544,7 +539,6 @@ restartBtn.addEventListener('click', () => {
   if (busy || mode !== 'local') return;
   const requestedSeed = seedInputEl.value.trim() || null;
   session.restart(requestedSeed);
-  localMoveCount = 0;
   clearAndLog('新对局开始：红方先手。');
   render();
 });
@@ -571,7 +565,7 @@ if (initialParams.get('e2e') === '1') {
       if (mode !== 'local') switchToLocal();
       session = createLocalSession();
       session.state = structuredClone(nextState);
-      localMoveCount = nextMoveCount;
+      session.moveCount = nextMoveCount;
       session.subscribe((snapshot, status) => {
         networkStatus = status;
         if (!busy) render();
