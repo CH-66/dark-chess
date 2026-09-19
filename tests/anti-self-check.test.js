@@ -378,3 +378,12 @@ test('完整红帅但缺少黑将时，终局检查短路到第二个帅/将存�
   assert.equal(result.state.gameOver, false);
   assert.equal(result.state.turn, SIDE.BLACK);
 });
+
+
+test('远距离且不同列时，帅/将不直接攻击目标格', () => {
+  const redKing = piece('king', SIDE.RED, 0, 9, { id: 'red-king' });
+  const blackKing = piece('king', SIDE.BLACK, 4, 0, { id: 'black-king' });
+  const state = stateWith([redKing, blackKing]);
+
+  assert.equal(isSquareAttacked(state, 0, 6, SIDE.BLACK), false);
+});
