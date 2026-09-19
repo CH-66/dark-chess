@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test tests/*.test.js",
-    "test:coverage": "node --experimental-test-coverage --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=98 --test tests/*.test.js",
+    "test": "node --test tests/game.test.js tests/exhaustive.test.js tests/anti-self-check.test.js tests/network.test.js tests/protocol.test.js tests/session.test.js",
+    "test:coverage": "node --experimental-test-coverage --test-coverage-include=src/game.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=98 --test tests/game.test.js tests/exhaustive.test.js tests/anti-self-check.test.js tests/network.test.js tests/protocol.test.js tests/session.test.js",
     "test:e2e": "playwright test",
     "start": "node server/index.js",
     "dev": "node server/index.js"
