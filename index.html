@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>随机暗棋 · 游戏原型</title>
+  <title>随机暗棋 · 联网对战原型</title>
   <link rel="stylesheet" href="src/style.css" />
 </head>
 <body>
@@ -14,8 +14,50 @@
         <h1>随机暗棋</h1>
         <p>位置决定第一次行动，翻棋决定之后身份。</p>
       </div>
-      <div class="seed-controls"><label for="seedInput">对局种子</label><input id="seedInput" placeholder="留空=随机"><span id="seedText">随机种子</span></div><button id="restartBtn" class="secondary" type="button" data-testid="restart">重新开局</button>
+
+      <div class="mode-switch" role="group" aria-label="游戏模式">
+        <button id="modeLocalBtn" class="mode-btn active" type="button" data-testid="mode-local" aria-pressed="true">本地双人</button>
+        <button id="modeOnlineBtn" class="mode-btn" type="button" data-testid="mode-online" aria-pressed="false">联网对战</button>
+      </div>
+
+      <div class="seed-controls">
+        <label for="seedInput">对局种子</label>
+        <input id="seedInput" placeholder="留空=随机">
+        <span id="seedText">随机种子</span>
+      </div>
+      <button id="restartBtn" class="secondary" type="button" data-testid="restart">重新开局</button>
     </header>
+
+    <section id="onlinePanel" class="online-toolbar panel" hidden>
+      <div class="online-toolbar-main">
+        <div>
+          <div class="panel-title-inline">
+            <h2>联网房间</h2>
+            <span id="networkStatus" class="network-badge status-idle" data-testid="network-status">未连接</span>
+          </div>
+          <div class="online-meta">
+            <span>房间号</span>
+            <strong id="roomCode" data-testid="room-code">未创建</strong>
+            <button id="copyRoomBtn" class="tiny-btn" type="button" data-testid="copy-room">复制</button>
+            <span>你的阵营</span>
+            <strong id="playerSide" data-testid="player-side">—</strong>
+          </div>
+        </div>
+
+        <div class="room-entry">
+          <label for="roomInput">输入房间号</label>
+          <div class="room-entry-row">
+            <input id="roomInput" inputmode="latin" autocomplete="off" placeholder="例如 8AF31C2D" data-testid="room-input">
+            <button id="joinRoomBtn" class="secondary" type="button" data-testid="join-room">加入</button>
+            <button id="createRoomBtn" class="primary room-create" type="button" data-testid="create-room">创建房间</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="waitingText" class="online-message" data-testid="waiting-text">把房间号分享给另一位玩家即可开始</div>
+      <button id="reconnectBtn" class="secondary reconnect-btn" type="button" data-testid="reconnect" hidden>重新连接</button>
+      <div id="networkError" class="network-error" role="alert" hidden></div>
+    </section>
 
     <section class="game-shell">
       <div class="game-card">
@@ -50,12 +92,11 @@
         </section>
 
         <section class="panel">
-          <h2>规则速览</h2>
+          <h2>联网提示</h2>
           <ul class="rules">
-            <li>暗棋首次行动按初始位置类型走，移动后必须翻开。</li>
-            <li>也可以选择原地翻开，翻开后本回合结束。</li>
-            <li>翻开后永久公开，并按真实棋子走法行动。</li>
-            <li>吃暗棋不揭示其真实身份；吃到帅/将即胜。</li>
+            <li>创建房间后，把房间号交给另一位玩家。</li>
+            <li>联网模式由服务端决定真实棋子身份、合法落子与胜负。</li>
+            <li>断线后房间凭证保留；恢复网络后可以重新连接并同步。</li>
           </ul>
         </section>
 
@@ -70,8 +111,8 @@
     </section>
 
     <footer class="footer">
-      <span>V0.4 Network Prototype</span>
-      <span>本地双人 · WebSocket 联网架构</span>
+      <span>V0.4 Online UI</span>
+      <span>本地双人 · WebSocket 联网</span>
     </footer>
   </main>
 
