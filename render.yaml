@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: dark-chess-online
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: node server/index.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
