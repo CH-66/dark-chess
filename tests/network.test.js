@@ -109,6 +109,19 @@ test('Room：房间最多容纳两名玩家，第三人无法加入', () => {
   assert.throws(() => room.join({}), /房间已满/);
 });
 
+test('Room：跨房间 command 会被拒绝', () => {
+  const room = new Room('ROOM-BOUNDARY');
+  const a = room.join({});
+  room.join({});
+  const piece = room.game.getState().pieces.find(p => p.side === 'RED' && !p.revealed);
+  assert.throws(() => room.command(a.player.playerId, a.player.sessionToken, {
+    roomId: 'OTHER-ROOM',
+    commandId: 'bad-room',
+    expectedRevision: 0,
+    command: { type: 'game.reveal', pieceId: piece.id },
+  }), /房间不匹配/);
+});
+
 test('Room：非法 session 不能执行游戏命令', () => {
   const room = new Room('ROOM-SESSION');
   const a = room.join({});
