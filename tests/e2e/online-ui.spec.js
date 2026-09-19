@@ -63,16 +63,16 @@ test.describe('第三阶段：联网棋盘 UI', () => {
     await expect(red.getByTestId('moveCount')).toHaveText('1 手');
     await expect(black.getByTestId('moveCount')).toHaveText('1 手');
 
-    const blackHidden = black.locator('[data-testid="board"] .piece.black.hidden').first();
-    await blackHidden.click();
-    await expect(black.locator('.target-cell')).not.toHaveCount(0);
-    const target = black.locator('.target-cell').first();
-    await target.click();
+    const blackFlipsRed = red.locator('[data-testid="board"] .piece.red.hidden').first();
+    await blackFlipsRed.click();
+    await expect(black.getByTestId('reveal')).toBeEnabled();
+    await black.getByTestId('reveal').click();
 
     await expect(red.getByTestId('moveCount')).toHaveText('2 手');
     await expect(black.getByTestId('moveCount')).toHaveText('2 手');
     await expect(red.getByTestId('turnText')).toHaveText('红方回合');
     await expect(black.getByTestId('turnText')).toHaveText('红方回合');
+    await expect(red.locator('[data-testid="board"] .piece.red.revealed')).toHaveCount(2);
     await expect(red.getByTestId('network-status')).toContainText('已连接');
     await expect(black.getByTestId('network-status')).toContainText('已连接');
 
