@@ -46,9 +46,29 @@ test('两浏览器上下文：同房间、不同视图、revision 同步、断�
   expect(Object.hasOwn(redHiddenOpponent, 'actualType')).toBeFalsy();
   expect(Object.hasOwn(blackHiddenSelf, 'actualType')).toBeFalsy();
 
+  const blackPiece = afterBlack.pieces.find(piece => piece.side === 'BLACK' && !piece.revealed);
+  expect(blackPiece).toBeTruthy();
+  const blackTargets = await black.evaluate(id => window.__DARK_CHESS_E2E_NETWORK__.legalTargets(id), blackPiece.id);
+  expect(blackTargets.length).toBeGreaterThan(0);
+  const target = blackTargets[0];
+  await black.evaluate(({ id, target }) => window.__DARK_CHESS_E2E_NETWORK__.move(id, target.x, target.y), {
+    id: blackPiece.id,
+    target,
+  });
+
+  await red.waitForFunction(() => window.__DARK_CHESS_E2E_NETWORK__.getView()?.revision === 2);
+  await black.waitForFunction(() => window.__DARK_CHESS_E2E_NETWORK__.getView()?.revision === 2);
+
+  const afterMoveRed = await red.evaluate(() => window.__DARK_CHESS_E2E_NETWORK__.getView());
+  const movedBlack = afterMoveRed.pieces.find(piece => piece.id === blackPiece.id);
+  expect(movedBlack).toBeTruthy();
+  expect(movedBlack.revealed).toBe(true);
+  expect(Object.hasOwn(movedBlack, 'actualType')).toBeTruthy();
+  expect(afterMoveRed.pieces.filter(piece => !piece.revealed).every(piece => !Object.hasOwn(piece, 'actualType'))).toBeTruthy();
+
   const resync = await red.evaluate(() => window.__DARK_CHESS_E2E_NETWORK__.resync());
   expect(resync.type).toBe('game.resync');
-  expect(resync.revision).toBe(1);
+  expect(resync.revision).toBe(2);
 
   await red.evaluate(() => window.__DARK_CHESS_E2E_NETWORK__.disconnect());
   await red.waitForFunction(() => window.__DARK_CHESS_E2E_NETWORK__.connected === false);
