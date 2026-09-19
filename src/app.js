@@ -286,6 +286,7 @@ if (new URLSearchParams(window.location.search).get('e2e') === 'network') {
     getView: () => session.getView(),
     move: (id, x, y) => session.move(id, x, y),
     reveal: id => session.reveal(id),
+    legalTargets: id => session.getLegalTargets(id),
     resync: () => session.resync(),
     disconnect: () => session.disconnect(),
     reconnect: () => session.reconnect(),
