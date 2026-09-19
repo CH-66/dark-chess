@@ -116,4 +116,5 @@ test.describe('第三阶段：联网棋盘 UI', () => {
     await expect(page.getByTestId('network-error')).toContainText('网络提示');
     await expect(page.getByTestId('network-status')).toHaveClass(/status-error|status-reconnecting/);
   });
-\n});
+
+});
