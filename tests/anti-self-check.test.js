@@ -58,8 +58,9 @@ test('车线攻击：移走护将棋子造成自将时，目标不再是合法�
 test('炮线攻击：移走炮架导致己方帅被攻击时，走法非法', () => {
   const redKing = piece('king', SIDE.RED, 4, 9, { id: 'red-king' });
   const redScreen = piece('pawn', SIDE.RED, 4, 7, { id: 'screen' });
+  const redSecondScreen = piece('pawn', SIDE.RED, 4, 6, { id: 'second-screen' });
   const blackCannon = piece('cannon', SIDE.BLACK, 4, 3, { id: 'black-cannon' });
-  const state = stateWith([redKing, redScreen, blackCannon]);
+  const state = stateWith([redKing, redScreen, redSecondScreen, blackCannon]);
 
   assert.equal(isSquareAttacked(state, 4, 9, SIDE.BLACK), false);
   const targets = legalTargets(state, redScreen).map(({ x, y }) => [x, y]);
@@ -108,7 +109,7 @@ test('将帅同列无棋子阻挡时互相攻击，有棋子阻挡时不攻击',
 test('已经被将军时，无关棋子不能继续走，帅的合法逃离可以走', () => {
   const redKing = piece('king', SIDE.RED, 4, 9, { id: 'red-king' });
   const blackRook = piece('rook', SIDE.BLACK, 4, 0, { id: 'black-rook' });
-  const mover = piece('rook', SIDE.RED, 0, 6, { id: 'mover' });
+  const mover = piece('rook', SIDE.RED, 0, 9, { id: 'mover' });
   const state = stateWith([redKing, blackRook, mover]);
 
   assert.equal(isKingInCheck(state, SIDE.RED), true);
@@ -247,14 +248,24 @@ test('红方一步后使黑方进入无将且无合法行动的局面，判和�
 
 test('hasAnyLegalAction：将军状态不能靠原地翻棋解除', () => {
   const redKing = piece('king', SIDE.RED, 4, 9, { id: 'red-king' });
-  const blackRook = piece('rook', SIDE.BLACK, 4, 0, { id: 'black-rook' });
+  const redLeftBlocker = piece('rook', SIDE.RED, 3, 9, { id: 'left-blocker' });
+  const redRightBlocker = piece('rook', SIDE.RED, 5, 9, { id: 'right-blocker' });
+  const blackRook = piece('rook', SIDE.BLACK, 4, 8, { id: 'black-rook' });
+  const blackProtector = piece('knight', SIDE.BLACK, 2, 7, { id: 'black-protector' });
   const hidden = piece('pawn', SIDE.RED, 2, 8, {
     id: 'hidden',
     originalType: 'pawn',
     actualType: 'cannon',
     revealed: false,
   });
-  const state = stateWith([redKing, blackRook, hidden]);
+  const state = stateWith([
+    redKing,
+    redLeftBlocker,
+    redRightBlocker,
+    blackRook,
+    blackProtector,
+    hidden,
+  ]);
 
   assert.equal(hasAnyLegalAction(state, SIDE.RED), false);
 });
@@ -280,4 +291,110 @@ test('原地翻棋后形成将军且对方无合法行动时，直接判将死',
   assert.equal(next.gameOver, true);
   assert.equal(next.outcome, 'CHECKMATE');
   assert.equal(next.winner, SIDE.RED);
+});
+
+
+test('hasAnyLegalAction：未被将军时，暗棋即使当前不能移动也可原地翻开', () => {
+  const blockedHidden = piece('rook', SIDE.RED, 0, 0, {
+    id: 'blocked-hidden',
+    originalType: 'rook',
+    actualType: 'cannon',
+    revealed: false,
+  });
+  const redBlockA = piece('pawn', SIDE.RED, 1, 0, { id: 'red-block-a' });
+  const redBlockB = piece('pawn', SIDE.RED, 0, 1, { id: 'red-block-b' });
+  const redKing = piece('king', SIDE.RED, 4, 9, { id: 'red-king' });
+  const redCenterBlocker = piece('pawn', SIDE.RED, 4, 5, { id: 'red-center-blocker' });
+  const blackKing = piece('king', SIDE.BLACK, 4, 0, { id: 'black-king' });
+  const state = stateWith([
+    blockedHidden,
+    redBlockA,
+    redBlockB,
+    redKing,
+    redCenterBlocker,
+    blackKing,
+  ], SIDE.RED);
+
+  assert.equal(isKingInCheck(state, SIDE.RED), false);
+  assert.deepEqual(legalTargets(state, blockedHidden), []);
+  assert.equal(hasAnyLegalAction(state, SIDE.RED), true);
+});
+
+
+test('hasAnyLegalAction：已翻开的无路棋子不会触发原地翻棋分支', () => {
+  const blockedRevealed = piece('rook', SIDE.RED, 0, 0, {
+    id: 'blocked-revealed',
+    originalType: 'rook',
+    actualType: 'rook',
+    revealed: true,
+  });
+  const redBlockA = piece('pawn', SIDE.RED, 1, 0, { id: 'red-block-a' });
+  const redBlockB = piece('pawn', SIDE.RED, 0, 1, { id: 'red-block-b' });
+  const redKing = piece('king', SIDE.RED, 4, 9, { id: 'red-king' });
+  const redCenterBlocker = piece('pawn', SIDE.RED, 4, 5, { id: 'red-center-blocker' });
+  const blackKing = piece('king', SIDE.BLACK, 4, 0, { id: 'black-king' });
+  const state = stateWith([
+    blockedRevealed,
+    redBlockA,
+    redBlockB,
+    redKing,
+    redCenterBlocker,
+    blackKing,
+  ], SIDE.RED);
+
+  assert.equal(isKingInCheck(state, SIDE.RED), false);
+  assert.deepEqual(legalTargets(state, blockedRevealed), []);
+  assert.equal(hasAnyLegalAction(state, SIDE.RED), true);
+});
+
+test('hasAnyLegalAction：非当前回合方也能按指定 side 检查行动', () => {
+  const state = stateWith([
+    piece('king', SIDE.RED, 4, 9, { id: 'red-king' }),
+    piece('king', SIDE.BLACK, 4, 0, { id: 'black-king' }),
+    piece('rook', SIDE.RED, 3, 2, { id: 'red-left-control' }),
+    piece('rook', SIDE.RED, 5, 2, { id: 'red-right-control' }),
+    piece('pawn', SIDE.RED, 4, 2, { id: 'red-center-control' }),
+  ], SIDE.RED);
+
+  assert.equal(hasAnyLegalAction(state, SIDE.BLACK), false);
+});
+
+
+test('帅自身所在格不视为自己的攻击目标', () => {
+  const redKing = piece('king', SIDE.RED, 4, 9, { id: 'red-king' });
+  const state = stateWith([redKing]);
+
+  assert.equal(isSquareAttacked(state, 4, 9, SIDE.RED), false);
+});
+
+test('完整红帅但缺少黑将时，终局检查短路到第二个帅/将存在性判断', () => {
+  const state = stateWith([
+    piece('king', SIDE.RED, 4, 9, { id: 'red-king' }),
+    piece('rook', SIDE.RED, 0, 9, { id: 'red-rook' }),
+  ], SIDE.RED);
+
+  const result = movePiece(state, 'red-rook', 0, 8);
+
+  assert.equal(result.state.gameOver, false);
+  assert.equal(result.state.turn, SIDE.BLACK);
+});
+
+
+test('远距离且不同列时，帅/将不直接攻击目标格', () => {
+  const redKing = piece('king', SIDE.RED, 0, 9, { id: 'red-king' });
+  const blackKing = piece('king', SIDE.BLACK, 4, 0, { id: 'black-king' });
+  const state = stateWith([redKing, blackKing]);
+
+  assert.equal(isSquareAttacked(state, 0, 6, SIDE.BLACK), false);
+});
+
+
+test('终局状态下候选行动生成器直接短路', () => {
+  const state = stateWith([
+    piece('king', SIDE.RED, 4, 9, { id: 'red-king' }),
+    piece('rook', SIDE.BLACK, 4, 0, { id: 'black-rook' }),
+  ]);
+  const gameOver = { ...state, gameOver: true };
+
+  assert.equal(isSquareAttacked(gameOver, 4, 9, SIDE.BLACK), false);
 });

@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   deploy:
@@ -21,7 +21,7 @@ jobs:
       TCB_SECRET_ID: ${{ secrets.TCB_SECRET_ID }}
       TCB_SECRET_KEY: ${{ secrets.TCB_SECRET_KEY }}
       TCB_IS_INTL: ${{ vars.TCB_IS_INTL || 'false' }}
-
+      TCB_CLOUDRUN_SERVICE: dark-chess-online
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,147 +31,132 @@ jobs:
         with:
           node-version: 24
 
-      - name: CloudBase end-to-end deployment and acceptance
-        id: deploy
+      - name: Validate CloudBase credentials
         shell: bash
         run: |
-          set +e
+          set -euo pipefail
+          test -n "$TCB_ENV_ID"
+          test -n "$TCB_SECRET_ID"
+          test -n "$TCB_SECRET_KEY"
 
-          WORKDIR="$(mktemp -d)"
-          STATUS_FILE="docs/CLOUDBASE_DEPLOY_STATUS.md"
-          PUBLIC_URL=""
+      - name: Install CloudBase CLI
+        run: npm install -g @cloudbase/cli
 
-          mkdir -p "$(dirname "$STATUS_FILE")"
+      - name: Login to CloudBase
+        run: tcb login --apiKeyId "$TCB_SECRET_ID" --apiKey "$TCB_SECRET_KEY"
 
-          run_stage() {
-            local name="$1"
-            shift
-            echo ""
-            echo "===== $name ====="
-            "$@"
-            local code=$?
-            if [ "$code" -ne 0 ]; then
-              FAILED_STAGE="$name"
-              FAILED_CODE="$code"
-              FAILED_OUTPUT="$(cat "$WORKDIR/current.log" 2>/dev/null | tail -n 20)"
-              return "$code"
-            fi
-            return 0
+      - name: Verify CloudBase environment
+        run: tcb env detail -e "$TCB_ENV_ID"
+
+      - name: Deploy CloudRun WebSocket service
+        shell: bash
+        run: |
+          set -euo pipefail
+          tcb cloudrun deploy             -e "$TCB_ENV_ID"             -s "$TCB_CLOUDRUN_SERVICE"             --source .             --port 8080             --force             --yes             --wait             --open-access-types PUBLIC             --min-num 1             --max-num 1
+
+      - name: Resolve CloudRun public domain
+        id: cloudrun
+        shell: bash
+        run: |
+          set -euo pipefail
+          tcb cloudrun detail             -e "$TCB_ENV_ID"             -s "$TCB_CLOUDRUN_SERVICE"             --json > cloudrun-detail.json
+          DOMAIN="$(node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const raw = JSON.parse(fs.readFileSync('cloudrun-detail.json','utf8'));
+          function find(v) {
+            if (Array.isArray(v)) {
+              for (const item of v) { const r = find(item); if (r) return r; }
+            } else if (v && typeof v === 'object') {
+              for (const [k, value] of Object.entries(v)) {
+                if ((k === 'DefaultDomainName' || k === 'defaultDomainName') &&
+                    typeof value === 'string' && value) return value.replace(/^https?:///, '');
+                const r = find(value); if (r) return r;
+              }
+            }
+            return '';
           }
+          process.stdout.write(find(raw));
+          NODE
+          )"
+          test -n "$DOMAIN"
+          echo "domain=$DOMAIN" >> "$GITHUB_OUTPUT"
 
-          overall=0
-          FAILED_STAGE=""
-          FAILED_CODE=0
-          FAILED_OUTPUT=""
+      - name: Check CloudRun health
+        shell: bash
+        run: |
+          set -euo pipefail
+          DOMAIN="${{ steps.cloudrun.outputs.domain }}"
+          STATUS="$(curl -L -sS -o /dev/null -w '%{http_code}' --max-time 30 "https://$DOMAIN/healthz")"
+          test "$STATUS" = "200"
 
-          echo "repo=$GITHUB_REPOSITORY" > "$WORKDIR/meta"
-          echo "sha=$GITHUB_SHA" >> "$WORKDIR/meta"
+      - name: Install runtime dependency
+        run: npm install --no-audit --no-fund
 
-          if [ -z "$TCB_ENV_ID" ]; then
-            FAILED_STAGE="Validate credentials"
-            FAILED_CODE=1
-            FAILED_OUTPUT="Missing TCB_ENV_ID"
-            overall=1
-          elif [ -z "$TCB_SECRET_ID" ]; then
-            FAILED_STAGE="Validate credentials"
-            FAILED_CODE=1
-            FAILED_OUTPUT="Missing TCB_SECRET_ID"
-            overall=1
-          elif [ -z "$TCB_SECRET_KEY" ]; then
-            FAILED_STAGE="Validate credentials"
-            FAILED_CODE=1
-            FAILED_OUTPUT="Missing TCB_SECRET_KEY"
-            overall=1
-          fi
+      - name: Check CloudRun WebSocket
+        shell: bash
+        run: |
+          set -euo pipefail
+          DOMAIN="${{ steps.cloudrun.outputs.domain }}"
+          DOMAIN="$DOMAIN" node --input-type=module <<'NODE'
+          import WebSocket from 'ws';
+          const url = 'wss://' + process.env.DOMAIN;
+          const ws = new WebSocket(url);
+          const timeout = setTimeout(() => { ws.terminate(); process.exit(1); }, 15000);
+          ws.on('open', () => {
+            ws.send(JSON.stringify({
+              protocolVersion: 1,
+              gameVersion: '0.4',
+              roomId: null,
+              commandId: 'ci-room-create',
+              expectedRevision: 0,
+              command: { type: 'room.create' }
+            }));
+          });
+          ws.on('message', raw => {
+            const message = JSON.parse(String(raw));
+            if (message.type !== 'room.created' ||
+                !message.roomId || !message.sessionToken || !message.side) {
+              ws.terminate();
+              clearTimeout(timeout);
+              process.exit(1);
+            }
+            clearTimeout(timeout);
+            ws.close();
+          });
+          ws.on('close', () => process.exit(0));
+          ws.on('error', () => { clearTimeout(timeout); process.exit(1); });
+          NODE
 
-          if [ "$overall" -eq 0 ]; then
-            npm install -g @cloudbase/cli >"$WORKDIR/current.log" 2>&1
-            code=$?
-            if [ "$code" -ne 0 ]; then
-              FAILED_STAGE="Install CloudBase CLI"
-              FAILED_CODE=$code
-              FAILED_OUTPUT="$(tail -n 20 "$WORKDIR/current.log")"
-              overall=1
-            fi
-          fi
+      - name: Prepare static artifact
+        shell: bash
+        env:
+          CLOUDRUN_DOMAIN: ${{ steps.cloudrun.outputs.domain }}
+        run: |
+          set -euo pipefail
+          rm -rf .cloudbase-dist
+          mkdir -p .cloudbase-dist/src
+          cp index.html .cloudbase-dist/index.html
+          cp -R src .cloudbase-dist/src
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const domain = process.env.CLOUDRUN_DOMAIN;
+          const runtime = '// Generated by GitHub Actions; no secrets are stored here.\n' +
+            'window.__DARK_CHESS_CONFIG__ = ' +
+            JSON.stringify({ wsEndpoint: 'wss://' + domain }) +
+            ';\n';
+          fs.writeFileSync('.cloudbase-dist/src/runtime-config.js', runtime);
+          NODE
+          grep -n "wsEndpoint" .cloudbase-dist/src/runtime-config.js
 
-          if [ "$overall" -eq 0 ]; then
-            tcb --version | tee "$WORKDIR/cli-version.log"
-            code=${PIPESTATUS[0]}
-            if [ "$code" -ne 0 ]; then
-              FAILED_STAGE="Check CloudBase CLI"
-              FAILED_CODE=$code
-              FAILED_OUTPUT="$(tail -n 20 "$WORKDIR/cli-version.log")"
-              overall=1
-            fi
-          fi
+      - name: Deploy static hosting
+        run: tcb hosting deploy .cloudbase-dist -e "$TCB_ENV_ID" --safe --verify --yes
 
-          if [ "$overall" -eq 0 ] && [ "$TCB_IS_INTL" = "true" ]; then
-            tcb config set isIntl true >"$WORKDIR/current.log" 2>&1
-            code=$?
-            if [ "$code" -ne 0 ]; then
-              FAILED_STAGE="Configure CloudBase site"
-              FAILED_CODE=$code
-              FAILED_OUTPUT="$(tail -n 20 "$WORKDIR/current.log")"
-              overall=1
-            fi
-          fi
-
-          if [ "$overall" -eq 0 ]; then
-            tcb login --apiKeyId "$TCB_SECRET_ID" --apiKey "$TCB_SECRET_KEY" >"$WORKDIR/current.log" 2>&1
-            code=$?
-            if [ "$code" -ne 0 ]; then
-              FAILED_STAGE="Login to CloudBase"
-              FAILED_CODE=$code
-              FAILED_OUTPUT="$(tail -n 20 "$WORKDIR/current.log")"
-              overall=1
-            fi
-          fi
-
-          if [ "$overall" -eq 0 ]; then
-            tcb env detail -e "$TCB_ENV_ID" >"$WORKDIR/current.log" 2>&1
-            code=$?
-            if [ "$code" -ne 0 ]; then
-              FAILED_STAGE="Verify CloudBase environment"
-              FAILED_CODE=$code
-              FAILED_OUTPUT="$(tail -n 20 "$WORKDIR/current.log")"
-              overall=1
-            fi
-          fi
-
-          if [ "$overall" -eq 0 ]; then
-            rm -rf .cloudbase-dist
-            mkdir -p .cloudbase-dist
-            cp index.html .cloudbase-dist/index.html
-            cp -R src .cloudbase-dist/src
-            echo "Prepared static artifact:"
-            find .cloudbase-dist -type f -print | sort
-          fi
-
-          if [ "$overall" -eq 0 ]; then
-            tcb hosting deploy .cloudbase-dist -e "$TCB_ENV_ID"               --safe --verify --yes               >"$WORKDIR/current.log" 2>&1
-            code=$?
-            if [ "$code" -ne 0 ]; then
-              FAILED_STAGE="Deploy static hosting"
-              FAILED_CODE=$code
-              FAILED_OUTPUT="$(tail -n 40 "$WORKDIR/current.log")"
-              overall=1
-            fi
-          fi
-
-          if [ "$overall" -eq 0 ]; then
-            npm install --no-save --no-package-lock @cloudbase/manager-node >"$WORKDIR/current.log" 2>&1
-            code=$?
-            if [ "$code" -ne 0 ]; then
-              FAILED_STAGE="Install CloudBase Manager SDK"
-              FAILED_CODE=$code
-              FAILED_OUTPUT="$(tail -n 20 "$WORKDIR/current.log")"
-              overall=1
-            fi
-          fi
-
-          if [ "$overall" -eq 0 ]; then
-            node <<'NODE' >"$WORKDIR/current.log" 2>&1
+      - name: Configure static website documents
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock @cloudbase/manager-node
+          node --input-type=module <<'NODE'
           import CloudBase from '@cloudbase/manager-node';
           const cloudbase = new CloudBase({
             secretId: process.env.TCB_SECRET_ID,
@@ -182,255 +167,151 @@ jobs:
             indexDocument: 'index.html',
             errorDocument: 'index.html',
             routingRules: [
-              {
-                httpErrorCodeReturnedEquals: '404',
-                replaceKeyWith: 'index.html',
-              },
+              { httpErrorCodeReturnedEquals: '404', replaceKeyWith: 'index.html' }
             ],
           });
-          if (res?.statusCode !== 200) {
-            throw new Error(JSON.stringify(res));
-          }
-          console.log('website documents configured');
+          if (res?.statusCode !== 200) throw new Error(JSON.stringify(res));
           NODE
-            code=$?
-            if [ "$code" -ne 0 ]; then
-              FAILED_STAGE="Configure index/error document"
-              FAILED_CODE=$code
-              FAILED_OUTPUT="$(tail -n 20 "$WORKDIR/current.log")"
-              overall=1
-            fi
-          fi
 
-          if [ "$overall" -eq 0 ]; then
-            tcb hosting detail -e "$TCB_ENV_ID" >"$WORKDIR/hosting.log" 2>&1
-            code=$?
-            if [ "$code" -ne 0 ]; then
-              FAILED_STAGE="Verify hosting"
-              FAILED_CODE=$code
-              FAILED_OUTPUT="$(tail -n 20 "$WORKDIR/hosting.log")"
-              overall=1
-            else
-              PUBLIC_URL="$(grep -Eo 'https://[A-Za-z0-9.-]+\.tcloudbaseapp\.com' "$WORKDIR/hosting.log" | head -n 1)"
-            fi
-          fi
-
-          HTTP_HOME=""
-          HTTP_JS=""
-          HTTP_CSS=""
-          HTTP_REFRESH=""
-          BODY_REFRESH="no"
-
-          if [ "$overall" -eq 0 ]; then
-            PUBLIC_URL="${PUBLIC_URL:-gamehub-d1g71qsoadd40adba-1300630036.tcloudbaseapp.com}"
-            if [[ "$PUBLIC_URL" != https://* ]]; then PUBLIC_URL="https://$PUBLIC_URL"; fi
-          fi
-
-          if [ "$overall" -eq 0 ] && [ -n "$PUBLIC_URL" ]; then
-            HTTP_HOME="$(curl -L -sS -o "$WORKDIR/home.html" -w '%{http_code}' --max-time 20 "$PUBLIC_URL/")"
-            HTTP_JS="$(curl -L -sS -o /dev/null -w '%{http_code}' --max-time 20 "$PUBLIC_URL/src/app.js")"
-            HTTP_CSS="$(curl -L -sS -o /dev/null -w '%{http_code}' --max-time 20 "$PUBLIC_URL/src/style.css")"
-            HTTP_REFRESH="$(curl -L -sS -o "$WORKDIR/refresh.html" -w '%{http_code}' --max-time 20 "$PUBLIC_URL/acceptance-refresh-check")"
-            if grep -q '随机暗棋' "$WORKDIR/refresh.html" 2>/dev/null; then
-              BODY_REFRESH="yes"
-            fi
-            if [ "$HTTP_HOME" != "200" ] || [ "$HTTP_JS" != "200" ] || [ "$HTTP_CSS" != "200" ] || [ "$HTTP_REFRESH" != "200" ]; then
-              overall=1
-              FAILED_STAGE="Public HTTP acceptance"
-              FAILED_CODE=1
-              FAILED_OUTPUT="home=$HTTP_HOME js=$HTTP_JS css=$HTTP_CSS"
-            fi
-          fi
-
-
-          if [ "$overall" -eq 0 ] && [ -n "$PUBLIC_URL" ]; then
-            npm install --no-save --no-package-lock @playwright/test >"$WORKDIR/playwright-install.log" 2>&1
-            code=$?
-            if [ "$code" -ne 0 ]; then
-              FAILED_STAGE="Install Playwright"
-              FAILED_CODE=$code
-              FAILED_OUTPUT="$(tail -n 40 "$WORKDIR/playwright-install.log")"
-              overall=1
-            fi
-          fi
-
-          if [ "$overall" -eq 0 ] && [ -n "$PUBLIC_URL" ]; then
-            npx playwright install chromium --with-deps >"$WORKDIR/playwright-browser.log" 2>&1
-            code=$?
-            if [ "$code" -ne 0 ]; then
-              FAILED_STAGE="Install Chromium"
-              FAILED_CODE=$code
-              FAILED_OUTPUT="$(tail -n 40 "$WORKDIR/playwright-browser.log")"
-              overall=1
-            fi
-          fi
-
-          if [ "$overall" -eq 0 ] && [ -n "$PUBLIC_URL" ]; then
-            echo "===== Browser-like curl diagnostics ====="
-            curl -L -sS -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/144.0.0.0 Safari/537.36"               -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"               -D "$WORKDIR/browser-like-headers.txt"               -o "$WORKDIR/browser-like.html"               --max-time 20 "$PUBLIC_URL/"
-            echo "browser_like_http=$?"
-            head -n 20 "$WORKDIR/browser-like-headers.txt" || true
-            echo "browser_like_body_marker=$(grep -c '随机暗棋' "$WORKDIR/browser-like.html" 2>/dev/null || true)"
-          fi
-
-          if [ "$overall" -eq 0 ] && [ -n "$PUBLIC_URL" ]; then
-            PUBLIC_URL="$PUBLIC_URL" node --input-type=module <<'NODE' >"$WORKDIR/browser-acceptance.log" 2>&1
-          import { chromium } from '@playwright/test';
-
-          const url = process.env.PUBLIC_URL.replace(/\/$/, '');
-          const browser = await chromium.launch({ headless: true });
-          const context = await browser.newContext({
-            userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/144.0.0.0 Safari/537.36',
-          });
-          const page = await context.newPage();
-          const consoleErrors = [];
-          const pageErrors = [];
-
-          page.on('console', msg => {
-            if (msg.type() === 'error') consoleErrors.push(msg.text());
-          });
-          page.on('pageerror', err => pageErrors.push(err.message));
-
-          async function inspect() {
-            return {
-              url: page.url(),
-              title: await page.title().catch(() => ''),
-              body: await page.locator('body').innerText().catch(() => ''),
-              boardCount: await page.locator('[data-testid="board"]').count().catch(() => 0),
-              pieceCount: await page.locator('[data-piece-id]').count().catch(() => 0),
-            };
-          }
-
-          const first = await page.goto(url + '/?browserAcceptance=1', {
-            waitUntil: 'domcontentloaded',
-          });
-
-          const firstStatus = first?.status() ?? null;
-          let info = await inspect();
-          const hadAccessReminder =
-            info.title.includes('风险提醒') || info.body.includes('确定访问');
-
-          if (hadAccessReminder) {
-            const enter = page.getByText('确定访问', { exact: true }).first();
-            await enter.waitFor({ state: 'visible', timeout: 5_000 });
-            await enter.click();
-            await page.waitForLoadState('domcontentloaded').catch(() => {});
-            await page.waitForTimeout(500);
-            // The access reminder is an expected CloudBase default-domain response.
-            // Start browser error collection after entering the actual game page.
-            consoleErrors.length = 0;
-            pageErrors.length = 0;
-            info = await inspect();
-          }
-
-          if (!hadAccessReminder && firstStatus !== 200) {
-            throw new Error('Unexpected home status: ' + firstStatus);
-          }
-          if (info.title.includes('风险提醒') || info.body.includes('确定访问')) {
-            throw new Error('CloudBase access reminder was not cleared');
-          }
-          if (!info.body.includes('随机暗棋')) {
-            throw new Error('Game page content not loaded');
-          }
-          if (info.boardCount !== 1) {
-            throw new Error('Game board not found');
-          }
-          if (info.pieceCount < 32) {
-            throw new Error('Expected at least 32 pieces, got ' + info.pieceCount);
-          }
-          if (consoleErrors.length || pageErrors.length) {
-            throw new Error('Browser errors after entering game: ' + JSON.stringify({ consoleErrors, pageErrors }));
-          }
-
-          const refresh = await page.reload({ waitUntil: 'domcontentloaded' });
-          const refreshInfo = await inspect();
-
-          console.log(JSON.stringify({
-            firstStatus,
-            accessReminderDetected: hadAccessReminder,
-            finalUrl: info.url,
-            title: info.title,
-            hasGameText: info.body.includes('随机暗棋'),
-            boardCount: info.boardCount,
-            pieceCount: info.pieceCount,
-            consoleErrors,
-            pageErrors,
-            refreshStatus: refresh?.status() ?? null,
-            refreshUrl: refreshInfo.url,
-            refreshTitle: refreshInfo.title,
-            refreshBoardCount: refreshInfo.boardCount,
-            refreshPieceCount: refreshInfo.pieceCount,
-          }, null, 2));
-
-          if (!refresh || refresh.status() !== 200) {
-            throw new Error('Refresh navigation status: ' + (refresh?.status() ?? 'no response'));
-          }
-          if (refreshInfo.title.includes('风险提醒') || refreshInfo.body.includes('确定访问')) {
-            throw new Error('Refresh returned the CloudBase access reminder instead of the game');
-          }
-          if (refreshInfo.boardCount !== 1 || refreshInfo.pieceCount < 32) {
-            throw new Error('Game board not restored after refresh');
-          }
-
-          await browser.close();
-          NODE
-            code=$?
-            if [ "$code" -ne 0 ]; then
-              FAILED_STAGE="Public browser acceptance"
-              FAILED_CODE=$code
-              FAILED_OUTPUT="$(tail -n 80 "$WORKDIR/browser-acceptance.log")"
-              overall=1
-            fi
-          fi
-
-
-          cat > "$STATUS_FILE" <<EOF
-          # CloudBase 部署回执
-
-          - 时间（UTC）：$(date -u '+%Y-%m-%d %H:%M:%S')
-          - Commit：$GITHUB_SHA
-          - CloudBase Environment：$TCB_ENV_ID
-          - CLI：$(cat "$WORKDIR/cli-version.log" 2>/dev/null | tail -n 1)
-          - 公网域名：${PUBLIC_URL:-未获取}
-          - 首页 HTTP：${HTTP_HOME:-未执行}
-          - app.js HTTP：${HTTP_JS:-未执行}
-          - style.css HTTP：${HTTP_CSS:-未执行}
-          - 刷新路径 HTTP：${HTTP_REFRESH:-未执行}
-          - 刷新路径内容包含“随机暗棋”：$BODY_REFRESH
-          - 总体结果：$([ "$overall" -eq 0 ] && echo PASS || echo FAIL)
-          - 失败阶段：${FAILED_STAGE:-无}
-          - 失败退出码：$FAILED_CODE
-
-          ## 失败输出（已限制最后 20 行）
-
-          ${FAILED_OUTPUT:-无}
-          EOF
-
-          echo "===== CloudBase acceptance receipt ====="
-          cat "$STATUS_FILE"
-
-          if [ "$overall" -ne 0 ]; then
-            exit "$overall"
-          fi
-
-      - name: Publish deployment receipt
-        if: always()
+      - name: Resolve static hosting domain
+        id: hosting
         shell: bash
         run: |
-          if [ -f docs/CLOUDBASE_DEPLOY_STATUS.md ]; then
-            cat docs/CLOUDBASE_DEPLOY_STATUS.md >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "# CloudBase 部署回执" >> "$GITHUB_STEP_SUMMARY"
-            echo "- Overall: workflow did not reach receipt generation" >> "$GITHUB_STEP_SUMMARY"
-          fi
+          set -euo pipefail
+          tcb hosting detail -e "$TCB_ENV_ID" --json > hosting-detail.json
+          DOMAIN="$(node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const raw = JSON.parse(fs.readFileSync('hosting-detail.json','utf8'));
+          function find(v) {
+            if (Array.isArray(v)) {
+              for (const item of v) { const r=find(item); if(r)return r; }
+            } else if (v && typeof v === 'object') {
+              for (const [k,value] of Object.entries(v)) {
+                if (typeof value === 'string' &&
+                    (k === 'Domain' || k === 'domain' || k === 'PublicDomain' || k === 'publicDomain') &&
+                    value.includes('.tcloudbaseapp.com')) return value.replace(/^https?:///,'');
+                const r=find(value); if(r)return r;
+              }
+            }
+            return '';
+          }
+          process.stdout.write(find(raw));
+          NODE
+          )"
+          if [ -z "$DOMAIN" ]; then DOMAIN="gamehub-d1g71qsoadd40adba-1300630036.tcloudbaseapp.com"; fi
+          echo "domain=$DOMAIN" >> "$GITHUB_OUTPUT"
 
-          mkdir -p artifacts
-          cp docs/CLOUDBASE_DEPLOY_STATUS.md artifacts/cloudbase-deploy-status.md 2>/dev/null || true
+      - name: Verify static resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          DOMAIN="${{ steps.hosting.outputs.domain }}"
+          test "$(curl -L -sS -o /dev/null -w '%{http_code}' --max-time 30 "https://$DOMAIN/")" = "200"
+          test "$(curl -L -sS -o /dev/null -w '%{http_code}' --max-time 30 "https://$DOMAIN/src/app.js")" = "200"
+          test "$(curl -L -sS -o /dev/null -w '%{http_code}' --max-time 30 "https://$DOMAIN/src/runtime-config.js")" = "200"
 
-      - name: Upload deployment receipt
+      - name: Public dual-browser acceptance
+        shell: bash
+        env:
+          PUBLIC_DOMAIN: ${{ steps.hosting.outputs.domain }}
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock @playwright/test
+          npx playwright install chromium --with-deps
+          node --input-type=module <<'NODE'
+          import { chromium } from '@playwright/test';
+
+          const base = 'https://' + process.env.PUBLIC_DOMAIN;
+          const browser = await chromium.launch({ headless: true });
+
+          async function openGame(context) {
+            const page = await context.newPage();
+            await page.goto(base + '/?publicOnlineAcceptance=1', { waitUntil: 'domcontentloaded' });
+            let body = await page.locator('body').innerText().catch(() => '');
+            let title = await page.title().catch(() => '');
+            if (title.includes('风险提醒') || body.includes('确定访问')) {
+              const enter = page.getByText('确定访问', { exact: true }).first();
+              await enter.waitFor({ state: 'visible', timeout: 5000 });
+              await enter.click();
+              await page.waitForLoadState('domcontentloaded').catch(() => {});
+              await page.waitForTimeout(300);
+            }
+            await page.locator('[data-testid="board"]').waitFor({ state: 'visible', timeout: 15000 });
+            return page;
+          }
+
+          const redContext = await browser.newContext();
+          const blackContext = await browser.newContext();
+          const red = await openGame(redContext);
+          const black = await openGame(blackContext);
+
+          await red.getByTestId('mode-online').click();
+          await red.getByTestId('create-room').click();
+          await red.waitForFunction(() =>
+            document.querySelector('[data-testid="network-status"]')?.textContent.includes('已连接'),
+            null,
+            { timeout: 20000 },
+          );
+
+          const roomId = (await red.getByTestId('room-code').textContent()).trim();
+          if (!/^[A-Z0-9]{8}$/.test(roomId)) throw new Error('Invalid room code: ' + roomId);
+
+          await black.getByTestId('mode-online').click();
+          await black.getByTestId('room-input').fill(roomId);
+          await black.getByTestId('join-room').click();
+
+          await black.waitForFunction(() =>
+            document.querySelector('[data-testid="network-status"]')?.textContent.includes('已连接 · 对局中'),
+            null,
+            { timeout: 20000 },
+          );
+          await red.waitForFunction(() =>
+            document.querySelector('[data-testid="network-status"]')?.textContent.includes('已连接 · 对局中'),
+            null,
+            { timeout: 20000 },
+          );
+
+          const redSide = (await red.getByTestId('player-side').textContent()).trim();
+          const blackSide = (await black.getByTestId('player-side').textContent()).trim();
+          if (redSide !== '红方' || blackSide !== '黑方') {
+            throw new Error('Unexpected sides: ' + redSide + ' / ' + blackSide);
+          }
+
+          if (await red.locator('[data-testid="board"] .piece').count() !== 32) {
+            throw new Error('Red board does not contain 32 pieces');
+          }
+          if (await black.locator('[data-testid="board"] .piece').count() !== 32) {
+            throw new Error('Black board does not contain 32 pieces');
+          }
+
+          await red.locator('[data-testid="board"] .piece.red.hidden').first().click();
+          await red.getByTestId('reveal').click();
+          await red.waitForFunction(() =>
+            document.querySelector('[data-testid="moveCount"]')?.textContent === '1 手',
+            null,
+            { timeout: 10000 },
+          );
+          await black.waitForFunction(() =>
+            document.querySelector('[data-testid="moveCount"]')?.textContent === '1 手',
+            null,
+            { timeout: 10000 },
+          );
+
+          await redContext.close();
+          await blackContext.close();
+          await browser.close();
+          NODE
+
+      - name: Deployment summary
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cloudbase-deployment-receipt
-          path: artifacts/cloudbase-deploy-status.md
-          if-no-files-found: warn
+        env:
+          CLOUDRUN_DOMAIN: ${{ steps.cloudrun.outputs.domain }}
+          HOSTING_DOMAIN: ${{ steps.hosting.outputs.domain }}
+        run: |
+          {
+            echo "## CloudBase V0.4 部署验收"
+            echo "- CloudRun service: $TCB_CLOUDRUN_SERVICE"
+            echo "- CloudRun domain: $CLOUDRUN_DOMAIN"
+            echo "- Static Hosting domain: $HOSTING_DOMAIN"
+            echo "- WSS: wss://$CLOUDRUN_DOMAIN"
+          } >> "$GITHUB_STEP_SUMMARY"
