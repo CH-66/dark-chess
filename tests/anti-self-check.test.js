@@ -325,7 +325,7 @@ test('hasAnyLegalAction：已翻开的无路棋子不会触发原地翻棋分支
   const blockedRevealed = piece('rook', SIDE.RED, 0, 0, {
     id: 'blocked-revealed',
     originalType: 'rook',
-    actualType: 'cannon',
+    actualType: 'rook',
     revealed: true,
   });
   const redBlockA = piece('pawn', SIDE.RED, 1, 0, { id: 'red-block-a' });
@@ -351,9 +351,9 @@ test('hasAnyLegalAction：非当前回合方也能按指定 side 检查行动', 
   const state = stateWith([
     piece('king', SIDE.RED, 4, 9, { id: 'red-king' }),
     piece('king', SIDE.BLACK, 4, 0, { id: 'black-king' }),
-    piece('rook', SIDE.BLACK, 3, 2, { id: 'black-left-control' }),
-    piece('rook', SIDE.BLACK, 5, 2, { id: 'black-right-control' }),
-    piece('pawn', SIDE.BLACK, 4, 2, { id: 'black-center-control' }),
+    piece('rook', SIDE.RED, 3, 2, { id: 'red-left-control' }),
+    piece('rook', SIDE.RED, 5, 2, { id: 'red-right-control' }),
+    piece('pawn', SIDE.RED, 4, 2, { id: 'red-center-control' }),
   ], SIDE.RED);
 
   assert.equal(hasAnyLegalAction(state, SIDE.BLACK), false);
