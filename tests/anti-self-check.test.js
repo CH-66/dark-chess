@@ -292,3 +292,22 @@ test('原地翻棋后形成将军且对方无合法行动时，直接判将死',
   assert.equal(next.outcome, 'CHECKMATE');
   assert.equal(next.winner, SIDE.RED);
 });
+
+
+test('hasAnyLegalAction：未被将军时，暗棋即使当前不能移动也可原地翻开', () => {
+  const blockedHidden = piece('rook', SIDE.RED, 0, 0, {
+    id: 'blocked-hidden',
+    originalType: 'rook',
+    actualType: 'cannon',
+    revealed: false,
+  });
+  const redBlockA = piece('pawn', SIDE.RED, 1, 0, { id: 'red-block-a' });
+  const redBlockB = piece('pawn', SIDE.RED, 0, 1, { id: 'red-block-b' });
+  const redKing = piece('king', SIDE.RED, 4, 9, { id: 'red-king' });
+  const blackKing = piece('king', SIDE.BLACK, 4, 0, { id: 'black-king' });
+  const state = stateWith([blockedHidden, redBlockA, redBlockB, redKing, blackKing], SIDE.RED);
+
+  assert.equal(isKingInCheck(state, SIDE.RED), false);
+  assert.deepEqual(legalTargets(state, blockedHidden), []);
+  assert.equal(hasAnyLegalAction(state, SIDE.RED), true);
+});
