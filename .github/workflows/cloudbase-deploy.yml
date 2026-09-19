@@ -25,7 +25,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: CloudBase end-to-end deployment and acceptance
         id: deploy
@@ -136,7 +136,7 @@ jobs:
           fi
 
           if [ "$overall" -eq 0 ]; then
-            tcb hosting deploy . -e "$TCB_ENV_ID"               --ignore ".git,node_modules,.github,tests,docs,config,*.log"               --safe --verify               >"$WORKDIR/current.log" 2>&1
+            tcb hosting deploy . -e "$TCB_ENV_ID"               --ignore ".git,node_modules,.github,tests,docs,config,*.log"               --safe --verify --yes               >"$WORKDIR/current.log" 2>&1
             code=$?
             if [ "$code" -ne 0 ]; then
               FAILED_STAGE="Deploy static hosting"
@@ -237,9 +237,7 @@ jobs:
 
           ## 失败输出（已限制最后 20 行）
 
-          ```text
           ${FAILED_OUTPUT:-无}
-          ```
           EOF
 
           echo "===== CloudBase acceptance receipt ====="
