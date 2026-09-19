@@ -136,12 +136,21 @@ jobs:
           fi
 
           if [ "$overall" -eq 0 ]; then
-            tcb hosting deploy . -e "$TCB_ENV_ID"               --ignore ".git,node_modules,.github,tests,docs,config,*.log"               --safe --verify --yes               >"$WORKDIR/current.log" 2>&1
+            rm -rf .cloudbase-dist
+            mkdir -p .cloudbase-dist
+            cp index.html .cloudbase-dist/index.html
+            cp -R src .cloudbase-dist/src
+            echo "Prepared static artifact:"
+            find .cloudbase-dist -type f -print | sort
+          fi
+
+          if [ "$overall" -eq 0 ]; then
+            tcb hosting deploy .cloudbase-dist -e "$TCB_ENV_ID"               --safe --verify --yes               >"$WORKDIR/current.log" 2>&1
             code=$?
             if [ "$code" -ne 0 ]; then
               FAILED_STAGE="Deploy static hosting"
               FAILED_CODE=$code
-              FAILED_OUTPUT="$(tail -n 20 "$WORKDIR/current.log")"
+              FAILED_OUTPUT="$(tail -n 40 "$WORKDIR/current.log")"
               overall=1
             fi
           fi
@@ -201,6 +210,11 @@ jobs:
           HTTP_CSS=""
           HTTP_REFRESH=""
           BODY_REFRESH="no"
+
+          if [ "$overall" -eq 0 ]; then
+            PUBLIC_URL="${PUBLIC_URL:-gamehub-d1g71qsoadd40adba-1300630036.tcloudbaseapp.com}"
+            if [[ "$PUBLIC_URL" != https://* ]]; then PUBLIC_URL="https://$PUBLIC_URL"; fi
+          fi
 
           if [ "$overall" -eq 0 ] && [ -n "$PUBLIC_URL" ]; then
             HTTP_HOME="$(curl -L -sS -o "$WORKDIR/home.html" -w '%{http_code}' --max-time 20 "$PUBLIC_URL/")"
