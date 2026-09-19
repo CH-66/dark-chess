@@ -102,6 +102,25 @@ test('隐藏身份不会通过 snapshot 或事件 view 泄漏 seed / actualType'
   assert.ok(b.player.side === 'BLACK');
 });
 
+test('Room：房间最多容纳两名玩家，第三人无法加入', () => {
+  const room = new Room('ROOM-FULL');
+  room.join({});
+  room.join({});
+  assert.throws(() => room.join({}), /房间已满/);
+});
+
+test('Room：非法 session 不能执行游戏命令', () => {
+  const room = new Room('ROOM-SESSION');
+  const a = room.join({});
+  room.join({});
+  const piece = room.game.getState().pieces.find(p => p.side === 'RED' && !p.revealed);
+  assert.throws(() => room.command(a.player.playerId, 'bad-token', {
+    commandId: 'bad-session',
+    expectedRevision: 0,
+    command: { type: 'game.reveal', pieceId: piece.id },
+  }), /会话无效/);
+});
+
 test('Room：玩家可以断线后使用同一 session 恢复原角色', () => {
   const room = new Room('ROOM-RECONNECT');
   const a = room.join({});
