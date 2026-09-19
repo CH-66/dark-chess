@@ -319,3 +319,42 @@ test('hasAnyLegalAction：未被将军时，暗棋即使当前不能移动也可
   assert.deepEqual(legalTargets(state, blockedHidden), []);
   assert.equal(hasAnyLegalAction(state, SIDE.RED), true);
 });
+
+
+test('hasAnyLegalAction：已翻开的无路棋子不会触发原地翻棋分支', () => {
+  const blockedRevealed = piece('rook', SIDE.RED, 0, 0, {
+    id: 'blocked-revealed',
+    originalType: 'rook',
+    actualType: 'cannon',
+    revealed: true,
+  });
+  const redBlockA = piece('pawn', SIDE.RED, 1, 0, { id: 'red-block-a' });
+  const redBlockB = piece('pawn', SIDE.RED, 0, 1, { id: 'red-block-b' });
+  const redKing = piece('king', SIDE.RED, 4, 9, { id: 'red-king' });
+  const redCenterBlocker = piece('pawn', SIDE.RED, 4, 5, { id: 'red-center-blocker' });
+  const blackKing = piece('king', SIDE.BLACK, 4, 0, { id: 'black-king' });
+  const state = stateWith([
+    blockedRevealed,
+    redBlockA,
+    redBlockB,
+    redKing,
+    redCenterBlocker,
+    blackKing,
+  ], SIDE.RED);
+
+  assert.equal(isKingInCheck(state, SIDE.RED), false);
+  assert.deepEqual(legalTargets(state, blockedRevealed), []);
+  assert.equal(hasAnyLegalAction(state, SIDE.RED), true);
+});
+
+test('hasAnyLegalAction：非当前回合方也能按指定 side 检查行动', () => {
+  const state = stateWith([
+    piece('king', SIDE.RED, 4, 9, { id: 'red-king' }),
+    piece('king', SIDE.BLACK, 4, 0, { id: 'black-king' }),
+    piece('rook', SIDE.BLACK, 3, 2, { id: 'black-left-control' }),
+    piece('rook', SIDE.BLACK, 5, 2, { id: 'black-right-control' }),
+    piece('pawn', SIDE.BLACK, 4, 2, { id: 'black-center-control' }),
+  ], SIDE.RED);
+
+  assert.equal(hasAnyLegalAction(state, SIDE.BLACK), false);
+});
