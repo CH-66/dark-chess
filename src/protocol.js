@@ -2,6 +2,7 @@ export const PROTOCOL_VERSION = 1;
 export const GAME_VERSION = '0.4';
 
 export const COMMANDS = Object.freeze({
+  CREATE: 'room.create',
   JOIN: 'room.join',
   MOVE: 'game.move',
   REVEAL: 'game.reveal',
@@ -22,35 +23,62 @@ export const EVENTS = Object.freeze({
 });
 
 export function createCommand({ roomId, commandId, expectedRevision, command }) {
+  return { protocolVersion: PROTOCOL_VERSION, gameVersion: GAME_VERSION, roomId, commandId, expectedRevision, command };
+}
+
+export function createRoomCreateCommand(commandId) {
+  return {
+    protocolVersion: PROTOCOL_VERSION,
+    gameVersion: GAME_VERSION,
+    roomId: null,
+    commandId,
+    expectedRevision: 0,
+    command: { type: COMMANDS.CREATE },
+  };
+}
+
+export function createJoinCommand({ roomId, commandId, playerId = null, sessionToken = null }) {
   return {
     protocolVersion: PROTOCOL_VERSION,
     gameVersion: GAME_VERSION,
     roomId,
     commandId,
-    expectedRevision,
-    command,
+    expectedRevision: 0,
+    command: { type: COMMANDS.JOIN, playerId, sessionToken },
   };
 }
 
-export function createResyncRequest(roomId, lastRevision) {
+export function createResyncRequest(roomId, lastRevision, sessionToken, commandId = null) {
   return {
     protocolVersion: PROTOCOL_VERSION,
     gameVersion: GAME_VERSION,
     roomId,
-    type: COMMANDS.RESYNC,
-    lastRevision,
+    commandId: commandId ?? String(lastRevision),
+    expectedRevision: lastRevision,
+    command: { type: COMMANDS.RESYNC, lastRevision, sessionToken },
   };
 }
 
 export function isValidCommandEnvelope(message) {
-  return Boolean(
-    message &&
-    message.protocolVersion === PROTOCOL_VERSION &&
-    message.gameVersion === GAME_VERSION &&
-    typeof message.roomId === 'string' &&
-    typeof message.commandId === 'string' &&
-    Number.isInteger(message.expectedRevision) &&
-    message.command &&
-    typeof message.command.type === 'string',
-  );
+  if (!message ||
+      message.protocolVersion !== PROTOCOL_VERSION ||
+      message.gameVersion !== GAME_VERSION ||
+      typeof message.commandId !== 'string' ||
+      !message.command ||
+      typeof message.command.type !== 'string') return false;
+
+  if (message.command.type === COMMANDS.CREATE) {
+    return (message.roomId === null || typeof message.roomId === 'string') &&
+      Number.isInteger(message.expectedRevision);
+  }
+
+  if (message.command.type === COMMANDS.RESYNC) {
+    return typeof message.roomId === 'string' &&
+      Number.isInteger(message.expectedRevision) &&
+      Number.isInteger(message.command.lastRevision) &&
+      typeof message.command.sessionToken === 'string';
+  }
+
+  return typeof message.roomId === 'string' &&
+    Number.isInteger(message.expectedRevision);
 }
