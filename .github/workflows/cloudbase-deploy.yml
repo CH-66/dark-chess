@@ -279,60 +279,95 @@ jobs:
 
           const url = process.env.PUBLIC_URL.replace(/\/$/, '');
           const browser = await chromium.launch({ headless: true });
-          const page = await browser.newPage({
+          const context = await browser.newContext({
             userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/144.0.0.0 Safari/537.36',
-            extraHTTPHeaders: {
-              accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            },
           });
-
+          const page = await context.newPage();
           const consoleErrors = [];
           const pageErrors = [];
+
           page.on('console', msg => {
             if (msg.type() === 'error') consoleErrors.push(msg.text());
           });
           page.on('pageerror', err => pageErrors.push(err.message));
 
-          const response = await page.goto(url + '/?browserAcceptance=1', {
+          async function inspect() {
+            return {
+              url: page.url(),
+              title: await page.title().catch(() => ''),
+              body: await page.locator('body').innerText().catch(() => ''),
+              boardCount: await page.locator('[data-testid="board"]').count().catch(() => 0),
+              pieceCount: await page.locator('[data-piece-id]').count().catch(() => 0),
+            };
+          }
+
+          const first = await page.goto(url + '/?browserAcceptance=1', {
             waitUntil: 'domcontentloaded',
           });
 
-          const finalUrl = page.url();
-          const body = await page.locator('body').innerText().catch(() => '');
-          const title = await page.title().catch(() => '');
-          const pieceCount = await page.locator('[data-piece-id]').count().catch(() => 0);
+          let currentStatus = first?.status() ?? null;
+          let info = await inspect();
+
+          if (info.title.includes('风险提醒') || info.body.includes('确定访问')) {
+            const enter = page.getByText('确定访问', { exact: true }).first();
+            await enter.waitFor({ state: 'visible', timeout: 5_000 });
+            await enter.click();
+            await page.waitForLoadState('domcontentloaded').catch(() => {});
+            await page.waitForTimeout(500);
+            info = await inspect();
+            currentStatus = 200;
+          }
 
           console.log(JSON.stringify({
-            status: response?.status() ?? null,
-            finalUrl,
-            title,
-            pieceCount,
-            hasGameText: body.includes('随机暗棋'),
+            firstStatus: first?.status() ?? null,
+            finalStatus: currentStatus,
+            finalUrl: info.url,
+            title: info.title,
+            hasGameText: info.body.includes('随机暗棋'),
+            boardCount: info.boardCount,
+            pieceCount: info.pieceCount,
             consoleErrors,
             pageErrors,
           }, null, 2));
 
-          if (!response || response.status() !== 200) {
-            throw new Error('Home navigation status: ' + (response?.status() ?? 'no response'));
+          if (info.title.includes('风险提醒') || info.body.includes('确定访问')) {
+            throw new Error('CloudBase access reminder was not cleared');
           }
-          if (!body.includes('随机暗棋')) {
-            throw new Error('Home document did not contain game text');
+          if (currentStatus !== 200) {
+            throw new Error('Final home status: ' + currentStatus);
           }
-          await page.locator('[data-testid="board"]').waitFor({ state: 'visible' });
-          if (pieceCount < 32) {
-            throw new Error('Expected at least 32 chess pieces, got ' + pieceCount);
+          if (!info.body.includes('随机暗棋')) {
+            throw new Error('Game page content not loaded');
+          }
+          if (info.boardCount !== 1) {
+            throw new Error('Game board not found');
+          }
+          if (info.pieceCount < 32) {
+            throw new Error('Expected at least 32 pieces, got ' + info.pieceCount);
           }
           if (consoleErrors.length || pageErrors.length) {
             throw new Error('Browser errors: ' + JSON.stringify({ consoleErrors, pageErrors }));
           }
 
-          const reload = await page.reload({ waitUntil: 'domcontentloaded' });
+          const refresh = await page.reload({ waitUntil: 'domcontentloaded' });
+          const refreshInfo = await inspect();
+
           console.log(JSON.stringify({
-            reloadStatus: reload?.status() ?? null,
-            reloadUrl: page.url(),
+            refreshStatus: refresh?.status() ?? null,
+            refreshUrl: refreshInfo.url,
+            refreshTitle: refreshInfo.title,
+            refreshBoardCount: refreshInfo.boardCount,
+            refreshPieceCount: refreshInfo.pieceCount,
           }, null, 2));
-          if (!reload || reload.status() !== 200) {
-            throw new Error('Reload navigation status: ' + (reload?.status() ?? 'no response'));
+
+          if (!refresh || refresh.status() !== 200) {
+            throw new Error('Refresh navigation status: ' + (refresh?.status() ?? 'no response'));
+          }
+          if (refreshInfo.title.includes('风险提醒') || refreshInfo.body.includes('确定访问')) {
+            throw new Error('Refresh returned the CloudBase access reminder instead of the game');
+          }
+          if (refreshInfo.boardCount !== 1 || refreshInfo.pieceCount < 32) {
+            throw new Error('Game board not restored after refresh');
           }
 
           await browser.close();
@@ -341,7 +376,7 @@ jobs:
             if [ "$code" -ne 0 ]; then
               FAILED_STAGE="Public browser acceptance"
               FAILED_CODE=$code
-              FAILED_OUTPUT="$(tail -n 60 "$WORKDIR/browser-acceptance.log")"
+              FAILED_OUTPUT="$(tail -n 80 "$WORKDIR/browser-acceptance.log")"
               overall=1
             fi
           fi
