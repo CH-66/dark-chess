@@ -9,17 +9,22 @@ test('LocalSession exposes the same rule engine without UI coupling', () => {
   const red = state.pieces.find(p => p.side === SIDE.RED && p.originalType === 'rook');
   assert.ok(red);
   assert.ok(Array.isArray(getLegalTargets(session, red.id)));
+  session.dispose();
 });
 
 test('LocalSession emits immutable snapshots and supports restart', () => {
   const session = createLocalSession('first');
   let snapshots = 0;
-  session.subscribe(snapshot => { snapshots += 1; snapshot.selectedId = 'mutated'; });
+  const unsubscribe = session.subscribe(snapshot => { snapshots += 1; snapshot.selectedId = 'mutated'; });
   const before = session.getState();
   const red = before.pieces.find(p => p.side === SIDE.RED);
   session.select(red.id);
   assert.equal(session.getState().selectedId, red.id);
+  assert.equal(before.selectedId, null);
+  assert.equal(session.getState().seed, 'FIRST');
   session.restart('second');
   assert.equal(session.getState().seed, 'SECOND');
   assert.equal(snapshots, 2);
+  assert.equal(unsubscribe(), true);
+  session.dispose();
 });
