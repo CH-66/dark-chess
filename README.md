@@ -123,3 +123,36 @@ GitHub Actions 会在 push / pull request 时自动执行规则测试、coverage
 
 
 <!-- CloudBase production deployment trigger -->
+
+## V0.4 联网对战
+
+当前 V0.4 第三阶段已经把 OnlineSession 正式接入实际棋盘 UI，支持：
+
+- 创建房间、显示房间号、另一浏览器加入；
+- 服务端权威翻棋、落子与胜负判定；
+- 双浏览器 revision 同步；
+- 网络错误、断线与重新连接；
+- 对手暗棋 actualType 不进入客户端视图。
+
+本地运行联网原型：
+
+```bash
+npm install
+npm start
+```
+
+默认监听 127.0.0.1:8080，部署时通过 HOST / PORT 调整监听地址。
+
+详细说明见 docs/V0.4_PHASE3.md。
+
+## CloudBase 公网部署
+
+当前公网架构为：
+
+```text
+浏览器
+  ├── HTTPS → CloudBase Static Hosting
+  └── WSS   → CloudBase CloudRun（dark-chess-online）
+```
+
+GitHub Actions 会在 main 推送时自动部署前端静态站点与 WebSocket 服务，并执行公网 HTTP + 浏览器验收。
