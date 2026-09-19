@@ -1,0 +1,25 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createLocalSession, getLegalTargets } from '../src/session.js';
+import { SIDE } from '../src/game.js';
+
+test('LocalSession exposes the same rule engine without UI coupling', () => {
+  const session = createLocalSession('v04-session');
+  const state = session.getState();
+  const red = state.pieces.find(p => p.side === SIDE.RED && p.originalType === 'rook');
+  assert.ok(red);
+  assert.ok(Array.isArray(getLegalTargets(session, red.id)));
+});
+
+test('LocalSession emits immutable snapshots and supports restart', () => {
+  const session = createLocalSession('first');
+  let snapshots = 0;
+  session.subscribe(snapshot => { snapshots += 1; snapshot.selectedId = 'mutated'; });
+  const before = session.getState();
+  const red = before.pieces.find(p => p.side === SIDE.RED);
+  session.select(red.id);
+  assert.equal(session.getState().selectedId, red.id);
+  session.restart('second');
+  assert.equal(session.getState().seed, 'SECOND');
+  assert.equal(snapshots, 2);
+});
