@@ -66,7 +66,8 @@ export function createGameServer({ port = 8080, host = '127.0.0.1' } = {}) {
       playerId: player.playerId,
       side: player.side,
       sessionToken: player.sessionToken,
-      commandId,\n      started: room.isStarted(),
+      commandId,
+      started: room.isStarted(),
       revision: room.game?.revision ?? 0,
       view: room.playerView(player.side),
     });
