@@ -56,14 +56,10 @@ jobs:
 
       - name: Deploy static site
         run: |
-          tcb hosting deploy . / -e "$TCB_ENV_ID" \
+          tcb hosting deploy . -e "$TCB_ENV_ID" \
             --ignore ".git,node_modules,.github,tests,docs,config,*.log" \
+            --safe \
             --verify
-
-      - name: Configure SPA entry and error page
-        run: |
-          npm install --no-save --no-package-lock @cloudbase/manager-node
-          node .github/scripts/configure-cloudbase-hosting.mjs
 
       - name: Verify hosting
         run: |
