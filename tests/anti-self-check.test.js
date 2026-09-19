@@ -272,3 +272,28 @@ test('hasAnyLegalAction：将军状态不能靠原地翻棋解除', async () => 
 
   assert.equal(module.hasAnyLegalAction(state, SIDE.RED), false);
 });
+
+
+test('原地翻棋后形成将军且对方无合法行动时，直接判将死', () => {
+  const state = stateWith([
+    piece('king', SIDE.RED, 4, 9, { id: 'red-king' }),
+    piece('bishop', SIDE.RED, 4, 2, {
+      id: 'hidden-checker',
+      originalType: 'bishop',
+      actualType: 'rook',
+      revealed: false,
+    }),
+    piece('rook', SIDE.RED, 3, 2, { id: 'left-control' }),
+    piece('rook', SIDE.RED, 5, 2, { id: 'right-control' }),
+    piece('king', SIDE.BLACK, 4, 0, { id: 'black-king' }),
+  ]);
+
+  assert.equal(isKingInCheck(state, SIDE.BLACK), false);
+  assert.equal(hasAnyLegalAction(state, SIDE.BLACK), true);
+
+  const next = revealInPlace(state, 'hidden-checker');
+
+  assert.equal(next.gameOver, true);
+  assert.equal(next.outcome, 'CHECKMATE');
+  assert.equal(next.winner, SIDE.RED);
+});
