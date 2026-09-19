@@ -78,6 +78,11 @@ export function createGameServer({ port = 8080 } = {}) {
         const message = JSON.parse(String(raw));
         const commandType = message?.command?.type;
 
+        if ((commandType === 'room.create' || commandType === 'room.join' || commandType === 'game.resync') &&
+            !isValidCommandEnvelope(message)) {
+          throw new Error('invalid_command_envelope');
+        }
+
         if (commandType === 'room.create') {
           const room = new Room();
           rooms.set(room.roomId, room);
