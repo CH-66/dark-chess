@@ -58,8 +58,9 @@ test('车线攻击：移走护将棋子造成自将时，目标不再是合法�
 test('炮线攻击：移走炮架导致己方帅被攻击时，走法非法', () => {
   const redKing = piece('king', SIDE.RED, 4, 9, { id: 'red-king' });
   const redScreen = piece('pawn', SIDE.RED, 4, 7, { id: 'screen' });
+  const redSecondScreen = piece('pawn', SIDE.RED, 4, 6, { id: 'second-screen' });
   const blackCannon = piece('cannon', SIDE.BLACK, 4, 3, { id: 'black-cannon' });
-  const state = stateWith([redKing, redScreen, blackCannon]);
+  const state = stateWith([redKing, redScreen, redSecondScreen, blackCannon]);
 
   assert.equal(isSquareAttacked(state, 4, 9, SIDE.BLACK), false);
   const targets = legalTargets(state, redScreen).map(({ x, y }) => [x, y]);
@@ -108,7 +109,7 @@ test('将帅同列无棋子阻挡时互相攻击，有棋子阻挡时不攻击',
 test('已经被将军时，无关棋子不能继续走，帅的合法逃离可以走', () => {
   const redKing = piece('king', SIDE.RED, 4, 9, { id: 'red-king' });
   const blackRook = piece('rook', SIDE.BLACK, 4, 0, { id: 'black-rook' });
-  const mover = piece('rook', SIDE.RED, 0, 6, { id: 'mover' });
+  const mover = piece('rook', SIDE.RED, 0, 9, { id: 'mover' });
   const state = stateWith([redKing, blackRook, mover]);
 
   assert.equal(isKingInCheck(state, SIDE.RED), true);
@@ -247,14 +248,24 @@ test('红方一步后使黑方进入无将且无合法行动的局面，判和�
 
 test('hasAnyLegalAction：将军状态不能靠原地翻棋解除', () => {
   const redKing = piece('king', SIDE.RED, 4, 9, { id: 'red-king' });
-  const blackRook = piece('rook', SIDE.BLACK, 4, 0, { id: 'black-rook' });
+  const redLeftBlocker = piece('rook', SIDE.RED, 3, 9, { id: 'left-blocker' });
+  const redRightBlocker = piece('rook', SIDE.RED, 5, 9, { id: 'right-blocker' });
+  const blackRook = piece('rook', SIDE.BLACK, 4, 8, { id: 'black-rook' });
+  const blackProtector = piece('knight', SIDE.BLACK, 2, 7, { id: 'black-protector' });
   const hidden = piece('pawn', SIDE.RED, 2, 8, {
     id: 'hidden',
     originalType: 'pawn',
     actualType: 'cannon',
     revealed: false,
   });
-  const state = stateWith([redKing, blackRook, hidden]);
+  const state = stateWith([
+    redKing,
+    redLeftBlocker,
+    redRightBlocker,
+    blackRook,
+    blackProtector,
+    hidden,
+  ]);
 
   assert.equal(hasAnyLegalAction(state, SIDE.RED), false);
 });
