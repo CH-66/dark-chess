@@ -21,9 +21,9 @@ test('LocalSession emits immutable snapshots and supports restart', () => {
   session.select(red.id);
   assert.equal(session.getState().selectedId, red.id);
   assert.equal(before.selectedId, null);
-  assert.equal(session.getState().seed, 'FIRST');
+  assert.equal(session.getState().seed, 'first');
   session.restart('second');
-  assert.equal(session.getState().seed, 'SECOND');
+  assert.equal(session.getState().seed, 'second');
   assert.equal(snapshots, 2);
   assert.equal(unsubscribe(), true);
   session.dispose();
