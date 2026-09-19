@@ -72,3 +72,36 @@ npx skills add tencentcloudbase/cloudbase-skills
 当前仓库已经完成 CloudBase 接入代码与 CI 配置；实际公网部署结果取决于 GitHub Secrets 是否有效、SecretId/SecretKey 是否具备目标环境所需权限，以及 `TCB_ENV_ID` 是否与账号/站点匹配。
 
 部署成功后，可在 Actions 日志的 Verify hosting 步骤查看 CloudBase 静态托管状态和默认访问域名。
+
+## 公网完整验收记录（2026-09-19）
+
+目标环境：`gamehub-d1g71qsoadd40adba`
+公网域名：`https://gamehub-d1g71qsoadd40adba-1300630036.tcloudbaseapp.com`
+
+生产部署 Workflow：`Deploy to CloudBase`
+- Run ID：`35423093687` 曾完成过部署验证。
+- 最终验收 Workflow：`35423093687`。
+- 最新完整验收 Commit：`015b19050b110f9ec0ad3a6d20b1755f704555b7`。
+- 同一 Commit 的 `test` Workflow：`35423093677`，结果 SUCCESS。
+
+完整链路已验证：
+- GitHub Actions 触发正常。
+- `TCB_ENV_ID / TCB_SECRET_ID / TCB_SECRET_KEY` 能注入到 Actions，日志中均保持掩码。
+- CloudBase CLI 3.8.3 安装正常。
+- CloudBase 登录正常。
+- CloudBase 环境查询正常。
+- 静态发布目录仅包含 `index.html` 和 `src/`，避开 Git 工作区权限问题。
+- CloudBase 静态托管部署成功。
+- 首页 HTTP 200。
+- `src/app.js` HTTP 200。
+- `src/style.css` HTTP 200。
+- SPA 测试路径 HTTP 200，返回内容包含“随机暗棋”。
+- Chromium 公网浏览器验收成功：首次访问识别 CloudBase 风险提醒并点击“确定访问”后进入游戏。
+- 浏览器页面标题正确。
+- 棋盘存在，32 枚棋子正常渲染。
+- 进入游戏后的 Console/PageError 检查通过。
+- 页面刷新后 HTTP 200，棋盘和 32 枚棋子恢复正常。
+
+### 默认域名提示
+
+CloudBase 当前对 `*.tcloudbaseapp.com` 默认域名启用浏览器安全提示中间页。首次通过浏览器直接打开时看到“风险提醒”属于 CloudBase 默认域名机制；点击“确定访问”后进入实际网站。生产环境建议继续配置自定义域名。
