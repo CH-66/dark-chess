@@ -28,3 +28,20 @@ test('LocalSession emits immutable snapshots and supports restart', () => {
   assert.equal(unsubscribe(), true);
   session.dispose();
 });
+
+
+test('LocalSession：当前回合可选择对方暗棋用于翻开，但不能直接移动', () => {
+  const session = createLocalSession('flip-opponent');
+  const state = session.getState();
+  const opponentHidden = state.pieces.find(p => p.side === SIDE.BLACK && !p.revealed);
+  assert.ok(opponentHidden);
+
+  session.select(opponentHidden.id);
+  assert.equal(session.getState().selectedId, opponentHidden.id);
+  assert.deepEqual(getLegalTargets(session, opponentHidden.id), []);
+
+  const revealed = session.reveal(opponentHidden.id);
+  assert.equal(revealed.pieces.find(p => p.id === opponentHidden.id).revealed, true);
+  assert.equal(revealed.turn, SIDE.BLACK);
+  session.dispose();
+});
