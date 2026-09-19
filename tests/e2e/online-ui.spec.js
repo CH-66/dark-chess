@@ -63,7 +63,7 @@ test.describe('第三阶段：联网棋盘 UI', () => {
     await expect(red.getByTestId('moveCount')).toHaveText('1 手');
     await expect(black.getByTestId('moveCount')).toHaveText('1 手');
 
-    const blackFlipsRed = red.locator('[data-testid="board"] .piece.red.hidden').first();
+    const blackFlipsRed = black.locator('[data-testid="board"] .piece.red.hidden').first();
     await blackFlipsRed.click();
     await expect(black.getByTestId('reveal')).toBeEnabled();
     await black.getByTestId('reveal').click();
