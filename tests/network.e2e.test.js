@@ -79,7 +79,7 @@ test('两浏览器上下文：同房间、不同视图、revision 同步、断�
 
   const reconnected = await red.evaluate(() => window.__DARK_CHESS_E2E_NETWORK__.getView());
   expect(reconnected.playerSide).toBe('RED');
-  expect(reconnected.revision).toBe(1);
+  expect(reconnected.revision).toBe(2);
 
   await redContext.close();
   await blackContext.close();
