@@ -51,7 +51,7 @@ export function createGameServer({ port = 8080, host = '127.0.0.1' } = {}) {
     for (const socket of wss.clients) {
       if (socket.readyState === WebSocket.OPEN) socket.ping();
     }
-  }, 30_000);
+  }, 10_000);
 
   function send(socket, message) {
     if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
