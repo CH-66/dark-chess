@@ -171,6 +171,7 @@ export function createGameServer({ port = 8080, host = '127.0.0.1' } = {}) {
           protocolVersion: 1,
           gameVersion: '0.4',
           code,
+          commandId: message?.commandId ?? null,
           message: error.message,
           roomId: context?.roomId ?? null,
           revision: context ? rooms.get(context.roomId)?.game?.revision ?? 0 : 0,
