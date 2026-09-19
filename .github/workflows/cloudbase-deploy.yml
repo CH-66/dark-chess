@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   deploy:
@@ -16,8 +16,6 @@ jobs:
       TCB_ENV_ID: ${{ secrets.TCB_ENV_ID }}
       TCB_SECRET_ID: ${{ secrets.TCB_SECRET_ID }}
       TCB_SECRET_KEY: ${{ secrets.TCB_SECRET_KEY }}
-      # Domestic is the default. For an international-site environment,
-      # create repository variable TCB_IS_INTL=true.
       TCB_IS_INTL: ${{ vars.TCB_IS_INTL || 'false' }}
 
     steps:
@@ -29,38 +27,244 @@ jobs:
         with:
           node-version: 20
 
-      - name: Validate CloudBase credentials
+      - name: CloudBase end-to-end deployment and acceptance
+        id: deploy
+        shell: bash
         run: |
-          test -n "$TCB_ENV_ID" || { echo "::error::Missing GitHub Secret TCB_ENV_ID"; exit 1; }
-          test -n "$TCB_SECRET_ID" || { echo "::error::Missing GitHub Secret TCB_SECRET_ID"; exit 1; }
-          test -n "$TCB_SECRET_KEY" || { echo "::error::Missing GitHub Secret TCB_SECRET_KEY"; exit 1; }
+          set +e
 
-      - name: Install CloudBase CLI
-        run: |
-          npm install -g @cloudbase/cli
-          tcb --version
+          WORKDIR="$(mktemp -d)"
+          STATUS_FILE="docs/CLOUDBASE_DEPLOY_STATUS.md"
+          PUBLIC_URL=""
 
-      - name: Configure CloudBase site
-        run: |
-          if [ "$TCB_IS_INTL" = "true" ]; then
-            tcb config set isIntl true
+          mkdir -p "$(dirname "$STATUS_FILE")"
+
+          run_stage() {
+            local name="$1"
+            shift
+            echo ""
+            echo "===== $name ====="
+            "$@"
+            local code=$?
+            if [ "$code" -ne 0 ]; then
+              FAILED_STAGE="$name"
+              FAILED_CODE="$code"
+              FAILED_OUTPUT="$(cat "$WORKDIR/current.log" 2>/dev/null | tail -n 20)"
+              return "$code"
+            fi
+            return 0
+          }
+
+          overall=0
+          FAILED_STAGE=""
+          FAILED_CODE=0
+          FAILED_OUTPUT=""
+
+          echo "repo=$GITHUB_REPOSITORY" > "$WORKDIR/meta"
+          echo "sha=$GITHUB_SHA" >> "$WORKDIR/meta"
+
+          if [ -z "$TCB_ENV_ID" ]; then
+            FAILED_STAGE="Validate credentials"
+            FAILED_CODE=1
+            FAILED_OUTPUT="Missing TCB_ENV_ID"
+            overall=1
+          elif [ -z "$TCB_SECRET_ID" ]; then
+            FAILED_STAGE="Validate credentials"
+            FAILED_CODE=1
+            FAILED_OUTPUT="Missing TCB_SECRET_ID"
+            overall=1
+          elif [ -z "$TCB_SECRET_KEY" ]; then
+            FAILED_STAGE="Validate credentials"
+            FAILED_CODE=1
+            FAILED_OUTPUT="Missing TCB_SECRET_KEY"
+            overall=1
           fi
 
-      - name: Login to CloudBase
-        run: |
-          tcb login --apiKeyId "$TCB_SECRET_ID" --apiKey "$TCB_SECRET_KEY"
+          if [ "$overall" -eq 0 ]; then
+            npm install -g @cloudbase/cli >"$WORKDIR/current.log" 2>&1
+            code=$?
+            if [ "$code" -ne 0 ]; then
+              FAILED_STAGE="Install CloudBase CLI"
+              FAILED_CODE=$code
+              FAILED_OUTPUT="$(tail -n 20 "$WORKDIR/current.log")"
+              overall=1
+            fi
+          fi
 
-      - name: Verify CloudBase environment
-        run: |
-          tcb env detail -e "$TCB_ENV_ID"
+          if [ "$overall" -eq 0 ]; then
+            tcb --version | tee "$WORKDIR/cli-version.log"
+            code=${PIPESTATUS[0]}
+            if [ "$code" -ne 0 ]; then
+              FAILED_STAGE="Check CloudBase CLI"
+              FAILED_CODE=$code
+              FAILED_OUTPUT="$(tail -n 20 "$WORKDIR/cli-version.log")"
+              overall=1
+            fi
+          fi
 
-      - name: Deploy static site
-        run: |
-          tcb hosting deploy . -e "$TCB_ENV_ID" \
-            --ignore ".git,node_modules,.github,tests,docs,config,*.log" \
-            --safe \
-            --verify
+          if [ "$overall" -eq 0 ] && [ "$TCB_IS_INTL" = "true" ]; then
+            tcb config set isIntl true >"$WORKDIR/current.log" 2>&1
+            code=$?
+            if [ "$code" -ne 0 ]; then
+              FAILED_STAGE="Configure CloudBase site"
+              FAILED_CODE=$code
+              FAILED_OUTPUT="$(tail -n 20 "$WORKDIR/current.log")"
+              overall=1
+            fi
+          fi
 
-      - name: Verify hosting
+          if [ "$overall" -eq 0 ]; then
+            tcb login --apiKeyId "$TCB_SECRET_ID" --apiKey "$TCB_SECRET_KEY" >"$WORKDIR/current.log" 2>&1
+            code=$?
+            if [ "$code" -ne 0 ]; then
+              FAILED_STAGE="Login to CloudBase"
+              FAILED_CODE=$code
+              FAILED_OUTPUT="$(tail -n 20 "$WORKDIR/current.log")"
+              overall=1
+            fi
+          fi
+
+          if [ "$overall" -eq 0 ]; then
+            tcb env detail -e "$TCB_ENV_ID" >"$WORKDIR/current.log" 2>&1
+            code=$?
+            if [ "$code" -ne 0 ]; then
+              FAILED_STAGE="Verify CloudBase environment"
+              FAILED_CODE=$code
+              FAILED_OUTPUT="$(tail -n 20 "$WORKDIR/current.log")"
+              overall=1
+            fi
+          fi
+
+          if [ "$overall" -eq 0 ]; then
+            tcb hosting deploy . -e "$TCB_ENV_ID"               --ignore ".git,node_modules,.github,tests,docs,config,*.log"               --safe --verify               >"$WORKDIR/current.log" 2>&1
+            code=$?
+            if [ "$code" -ne 0 ]; then
+              FAILED_STAGE="Deploy static hosting"
+              FAILED_CODE=$code
+              FAILED_OUTPUT="$(tail -n 20 "$WORKDIR/current.log")"
+              overall=1
+            fi
+          fi
+
+          if [ "$overall" -eq 0 ]; then
+            npm install --no-save --no-package-lock @cloudbase/manager-node >"$WORKDIR/current.log" 2>&1
+            code=$?
+            if [ "$code" -ne 0 ]; then
+              FAILED_STAGE="Install CloudBase Manager SDK"
+              FAILED_CODE=$code
+              FAILED_OUTPUT="$(tail -n 20 "$WORKDIR/current.log")"
+              overall=1
+            fi
+          fi
+
+          if [ "$overall" -eq 0 ]; then
+            node <<'NODE' >"$WORKDIR/current.log" 2>&1
+          import CloudBase from '@cloudbase/manager-node';
+          const cloudbase = new CloudBase({
+            secretId: process.env.TCB_SECRET_ID,
+            secretKey: process.env.TCB_SECRET_KEY,
+            envId: process.env.TCB_ENV_ID,
+          });
+          const res = await cloudbase.hosting.setWebsiteDocument({
+            indexDocument: 'index.html',
+            errorDocument: 'index.html',
+          });
+          if (res?.statusCode !== 200) {
+            throw new Error(JSON.stringify(res));
+          }
+          console.log('website documents configured');
+          NODE
+            code=$?
+            if [ "$code" -ne 0 ]; then
+              FAILED_STAGE="Configure index/error document"
+              FAILED_CODE=$code
+              FAILED_OUTPUT="$(tail -n 20 "$WORKDIR/current.log")"
+              overall=1
+            fi
+          fi
+
+          if [ "$overall" -eq 0 ]; then
+            tcb hosting detail -e "$TCB_ENV_ID" >"$WORKDIR/hosting.log" 2>&1
+            code=$?
+            if [ "$code" -ne 0 ]; then
+              FAILED_STAGE="Verify hosting"
+              FAILED_CODE=$code
+              FAILED_OUTPUT="$(tail -n 20 "$WORKDIR/hosting.log")"
+              overall=1
+            else
+              PUBLIC_URL="$(grep -Eo 'https://[A-Za-z0-9.-]+\.tcloudbaseapp\.com' "$WORKDIR/hosting.log" | head -n 1)"
+            fi
+          fi
+
+          HTTP_HOME=""
+          HTTP_JS=""
+          HTTP_CSS=""
+          HTTP_REFRESH=""
+          BODY_REFRESH="no"
+
+          if [ "$overall" -eq 0 ] && [ -n "$PUBLIC_URL" ]; then
+            HTTP_HOME="$(curl -L -sS -o "$WORKDIR/home.html" -w '%{http_code}' --max-time 20 "$PUBLIC_URL/")"
+            HTTP_JS="$(curl -L -sS -o /dev/null -w '%{http_code}' --max-time 20 "$PUBLIC_URL/src/app.js")"
+            HTTP_CSS="$(curl -L -sS -o /dev/null -w '%{http_code}' --max-time 20 "$PUBLIC_URL/src/style.css")"
+            HTTP_REFRESH="$(curl -L -sS -o "$WORKDIR/refresh.html" -w '%{http_code}' --max-time 20 "$PUBLIC_URL/acceptance-refresh-check")"
+            if grep -q '随机暗棋' "$WORKDIR/refresh.html" 2>/dev/null; then
+              BODY_REFRESH="yes"
+            fi
+            if [ "$HTTP_HOME" != "200" ] || [ "$HTTP_JS" != "200" ] || [ "$HTTP_CSS" != "200" ]; then
+              overall=1
+              FAILED_STAGE="Public HTTP acceptance"
+              FAILED_CODE=1
+              FAILED_OUTPUT="home=$HTTP_HOME js=$HTTP_JS css=$HTTP_CSS"
+            fi
+          fi
+
+          cat > "$STATUS_FILE" <<EOF
+          # CloudBase 部署回执
+
+          - 时间（UTC）：$(date -u '+%Y-%m-%d %H:%M:%S')
+          - Commit：$GITHUB_SHA
+          - CloudBase Environment：$TCB_ENV_ID
+          - CLI：$(cat "$WORKDIR/cli-version.log" 2>/dev/null | tail -n 1)
+          - 公网域名：${PUBLIC_URL:-未获取}
+          - 首页 HTTP：${HTTP_HOME:-未执行}
+          - app.js HTTP：${HTTP_JS:-未执行}
+          - style.css HTTP：${HTTP_CSS:-未执行}
+          - 刷新路径 HTTP：${HTTP_REFRESH:-未执行}
+          - 刷新路径内容包含“随机暗棋”：$BODY_REFRESH
+          - 总体结果：$([ "$overall" -eq 0 ] && echo PASS || echo FAIL)
+          - 失败阶段：${FAILED_STAGE:-无}
+          - 失败退出码：$FAILED_CODE
+
+          ## 失败输出（已限制最后 20 行）
+
+          ```text
+          ${FAILED_OUTPUT:-无}
+          ```
+          EOF
+
+          echo "===== CloudBase acceptance receipt ====="
+          cat "$STATUS_FILE"
+
+          if [ "$overall" -ne 0 ]; then
+            exit "$overall"
+          fi
+
+      - name: Commit deployment receipt
+        if: always()
+        shell: bash
         run: |
-          tcb hosting detail -e "$TCB_ENV_ID"
+          if [ ! -f docs/CLOUDBASE_DEPLOY_STATUS.md ]; then
+            cat > docs/CLOUDBASE_DEPLOY_STATUS.md <<'EOF'
+          # CloudBase 部署回执
+
+          - 总体结果：FAIL
+          - 说明：部署作业未能生成正常回执，通常意味着 Actions 在回执步骤前就被取消、禁止执行或工作流未运行。
+          EOF
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/CLOUDBASE_DEPLOY_STATUS.md
+          git diff --cached --quiet && exit 0
+          git commit -m "ci: record CloudBase deployment receipt [skip ci]"
+          git push
