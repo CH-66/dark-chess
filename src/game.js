@@ -81,6 +81,7 @@ export function createInitialState(random = Math.random, seed = null) {
     selectedId: null,
     gameOver: false,
     winner: null,
+    outcome: null,
     seed,
   };
 }
@@ -266,6 +267,59 @@ export function legalTargets(state, piece) {
   });
 }
 
+export function hasAnyLegalAction(state, side = state.turn) {
+  if (state.gameOver) return false;
+
+  const view = state.turn === side ? state : { ...state, turn: side };
+  const checked = isKingInCheck(view, side);
+
+  for (const piece of view.pieces) {
+    if (!piece.alive || piece.side !== side) continue;
+
+    if (legalTargets(view, piece).length > 0) return true;
+
+    if (!checked && !piece.revealed) {
+      // 原地翻棋本身就是一个合法行动；只有非将军状态下才能使用。
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function hasLivingKing(state, side) {
+  return state.pieces.some(
+    piece => piece.alive && piece.side === side && piece.actualType === 'king'
+  );
+}
+
+function finishTurn(next, moverSide) {
+  const responder = opposite(moverSide);
+  next.turn = responder;
+
+  // 测试/编辑局面可能只包含一方帅/将；这种不完整局面不推断终局。
+  if (!hasLivingKing(next, SIDE.RED) || !hasLivingKing(next, SIDE.BLACK)) {
+    return next;
+  }
+
+  if (isKingInCheck(next, responder)) {
+    if (!hasAnyLegalAction(next, responder)) {
+      next.gameOver = true;
+      next.winner = moverSide;
+      next.outcome = 'CHECKMATE';
+    }
+    return next;
+  }
+
+  if (!hasAnyLegalAction(next, responder)) {
+    next.gameOver = true;
+    next.winner = null;
+    next.outcome = 'STALEMATE';
+  }
+
+  return next;
+}
+
 export function isLegalTarget(state, piece, x, y) {
   return legalTargets(state, piece).some(target => target.x === x && target.y === y);
 }
@@ -282,8 +336,7 @@ export function revealInPlace(state, pieceId) {
 
   piece.revealed = true;
   next.selectedId = null;
-  next.turn = opposite(next.turn);
-  return next;
+  return finishTurn(next, piece.side);
 }
 
 export function movePiece(state, pieceId, x, y) {
@@ -308,8 +361,9 @@ export function movePiece(state, pieceId, x, y) {
   if (capturedKing) {
     next.gameOver = true;
     next.winner = piece.side;
+    next.outcome = 'CAPTURE_KING';
   } else {
-    next.turn = opposite(next.turn);
+    finishTurn(next, piece.side);
   }
 
   return { state: next, captured, capturedKing };

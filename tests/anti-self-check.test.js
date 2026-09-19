@@ -8,6 +8,7 @@ import {
   legalTargets,
   movePiece,
   revealInPlace,
+  hasAnyLegalAction,
 } from '../src/game.js';
 
 function stateWith(pieces, turn = SIDE.RED) {
@@ -172,4 +173,111 @@ test('合法解除将军后，落子成功并换手', () => {
   assert.equal(result.state.turn, SIDE.BLACK);
   assert.equal(result.state.gameOver, false);
   assert.equal(isKingInCheck(result.state, SIDE.RED), false);
+});
+
+
+test('兵/卒攻击规则与中国象棋走法一致：前方可攻击，过河后左右也可攻击', () => {
+  const redKing = piece('king', SIDE.RED, 4, 9, { id: 'red-king' });
+  const redPawn = piece('pawn', SIDE.RED, 4, 5, { id: 'red-pawn' });
+  const blackKing = piece('king', SIDE.BLACK, 4, 4, { id: 'black-king' });
+  const state = stateWith([redKing, redPawn, blackKing]);
+
+  assert.equal(isSquareAttacked(state, 4, 4, SIDE.RED), true);
+
+  const crossed = stateWith([
+    piece('king', SIDE.RED, 4, 9, { id: 'red-king' }),
+    piece('pawn', SIDE.RED, 4, 4, { id: 'red-pawn' }),
+    piece('king', SIDE.BLACK, 3, 4, { id: 'black-king' }),
+  ]);
+  assert.equal(isSquareAttacked(crossed, 3, 4, SIDE.RED), true);
+});
+
+test('被将军且无合法行动时判定为将死并由攻击方获胜', () => {
+  const pieces = [
+    piece('king', SIDE.RED, 4, 9, { id: 'red-king' }),
+    piece('rook', SIDE.RED, 0, 1, { id: 'mover' }),
+    piece('pawn', SIDE.RED, 4, 2, { id: 'protector' }),
+    piece('rook', SIDE.RED, 3, 2, { id: 'left-control' }),
+    piece('rook', SIDE.RED, 5, 2, { id: 'right-control' }),
+    piece('king', SIDE.BLACK, 4, 0, { id: 'black-king' }),
+  ];
+  const state = stateWith(pieces);
+
+  assert.equal(isKingInCheck(state, SIDE.BLACK), false);
+
+  const result = movePiece(state, 'mover', 4, 1);
+
+  assert.equal(result.capturedKing, false);
+  assert.equal(result.state.gameOver, true);
+  assert.equal(result.state.outcome, 'CHECKMATE');
+  assert.equal(result.state.winner, SIDE.RED);
+});
+
+test('未被将军且无合法行动时判和棋', () => {
+  const state = stateWith([
+    piece('king', SIDE.RED, 4, 9, { id: 'red-king' }),
+    piece('king', SIDE.BLACK, 4, 0, { id: 'black-king' }),
+    piece('rook', SIDE.RED, 3, 2, { id: 'left-control' }),
+    piece('rook', SIDE.RED, 5, 2, { id: 'right-control' }),
+    piece('pawn', SIDE.RED, 4, 2, { id: 'center-control' }),
+  ], SIDE.BLACK);
+
+  assert.equal(isKingInCheck(state, SIDE.BLACK), false);
+  assert.equal(hasAnyLegalAction(state, SIDE.BLACK), false);
+});
+
+test('红方一步后使黑方进入无将且无合法行动的局面，判和棋', () => {
+  const state = stateWith([
+    piece('king', SIDE.RED, 4, 9, { id: 'red-king' }),
+    piece('pawn', SIDE.RED, 4, 3, { id: 'center-control' }),
+    piece('rook', SIDE.RED, 3, 2, { id: 'left-control' }),
+    piece('rook', SIDE.RED, 5, 2, { id: 'right-control' }),
+    piece('king', SIDE.BLACK, 4, 0, { id: 'black-king' }),
+  ]);
+
+  assert.equal(isKingInCheck(state, SIDE.BLACK), false);
+  assert.equal(hasAnyLegalAction(state, SIDE.BLACK), true);
+
+  const result = movePiece(state, 'center-control', 4, 2);
+
+  assert.equal(result.state.gameOver, true);
+  assert.equal(result.state.outcome, 'STALEMATE');
+  assert.equal(result.state.winner, null);
+});
+
+test('hasAnyLegalAction：将军状态不能靠原地翻棋解除', () => {
+  const redKing = piece('king', SIDE.RED, 4, 9, { id: 'red-king' });
+  const blackRook = piece('rook', SIDE.BLACK, 4, 0, { id: 'black-rook' });
+  const hidden = piece('pawn', SIDE.RED, 2, 8, {
+    id: 'hidden',
+    originalType: 'pawn',
+    actualType: 'cannon',
+    revealed: false,
+  });
+  const state = stateWith([redKing, blackRook, hidden]);
+
+  assert.equal(hasAnyLegalAction(state, SIDE.RED), false);
+});
+test('原地翻棋后形成将军且对方无合法行动时，直接判将死', () => {
+  const state = stateWith([
+    piece('king', SIDE.RED, 4, 9, { id: 'red-king' }),
+    piece('bishop', SIDE.RED, 4, 2, {
+      id: 'hidden-checker',
+      originalType: 'bishop',
+      actualType: 'rook',
+      revealed: false,
+    }),
+    piece('rook', SIDE.RED, 3, 2, { id: 'left-control' }),
+    piece('rook', SIDE.RED, 5, 2, { id: 'right-control' }),
+    piece('king', SIDE.BLACK, 4, 0, { id: 'black-king' }),
+  ]);
+
+  assert.equal(isKingInCheck(state, SIDE.BLACK), false);
+  assert.equal(hasAnyLegalAction(state, SIDE.BLACK), true);
+
+  const next = revealInPlace(state, 'hidden-checker');
+
+  assert.equal(next.gameOver, true);
+  assert.equal(next.outcome, 'CHECKMATE');
+  assert.equal(next.winner, SIDE.RED);
 });
