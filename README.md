@@ -14,6 +14,19 @@
 - 吃掉暗棋时默认不揭示其真实身份。
 - V1.0 不采用传统将军/应将判定，吃掉对方帅/将即胜。
 
+## V0.4 联网对战
+
+当前 V0.4 已把 `OnlineSession` 接入实际棋盘 UI，支持创建房间、房间号加入、双方在线落子、连接状态、错误提示与断线重连。运行完整联网原型：
+
+```bash
+npm install
+npm start
+```
+
+默认监听 `127.0.0.1:8080`。部署环境可通过 `PORT`、`HOST` 调整监听地址。
+
+详细第三阶段记录见 `docs/V0.4_PHASE3.md`。
+
 ## 原型
 
 当前原型已经包含：
@@ -110,8 +123,18 @@ GitHub Actions 会在 push / pull request 时自动执行规则测试、内建 c
 │   ├── app.js
 │   ├── game.js
 │   └── style.css
+├── server/
+│   ├── authoritative-game.js
+│   ├── index.js
+│   ├── room.js
+│   ├── visibility.js
+│   └── ws-server.js
 └── tests/
-    └── game.test.js
+    ├── game.test.js
+    ├── network.test.js
+    ├── protocol.test.js
+    ├── session.test.js
+    └── e2e/online-ui.spec.js
 ```
 
 ## 原型定位
@@ -119,3 +142,8 @@ GitHub Actions 会在 push / pull request 时自动执行规则测试、内建 c
 当前 V0.4 已建立本地 Session 与最小联网对战服务端边界：本地模式仍可独立运行，联网模式由 WebSocket + Room + AuthoritativeGame 驱动。
 
 联网实现必须由服务端维护真实棋子身份并执行权威规则判定，浏览器只能获得当前玩家有权看到的信息。
+
+
+## 当前阶段定位
+
+V0.4 第三阶段是可运行的联网对战原型，尚未进入生产公网部署。下一步进入部署、HTTPS/WSS、反向代理和异地浏览器联调。
