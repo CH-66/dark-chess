@@ -258,22 +258,6 @@ test('hasAnyLegalAction：将军状态不能靠原地翻棋解除', () => {
 
   assert.equal(hasAnyLegalAction(state, SIDE.RED), false);
 });
-test('hasAnyLegalAction：将军状态不能靠原地翻棋解除', async () => {
-  const module = await import('../src/game.js');
-  const redKing = piece('king', SIDE.RED, 4, 9, { id: 'red-king' });
-  const blackRook = piece('rook', SIDE.BLACK, 4, 0, { id: 'black-rook' });
-  const hidden = piece('pawn', SIDE.RED, 2, 8, {
-    id: 'hidden',
-    originalType: 'pawn',
-    actualType: 'cannon',
-    revealed: false,
-  });
-  const state = stateWith([redKing, blackRook, hidden]);
-
-  assert.equal(module.hasAnyLegalAction(state, SIDE.RED), false);
-});
-
-
 test('原地翻棋后形成将军且对方无合法行动时，直接判将死', () => {
   const state = stateWith([
     piece('king', SIDE.RED, 4, 9, { id: 'red-king' }),
