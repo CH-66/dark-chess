@@ -104,10 +104,10 @@ function makePieceEl(piece, state) {
   if (piece.revealed && piece.actualType === 'king') el.classList.add('king');
   if (piece.id === state?.selectedId) el.classList.add('selected');
 
-  const isOwnTurn = mode === 'local'
-    ? piece.side === state?.turn
-    : piece.side === state?.turn && piece.side === networkStatus.side;
-  if (isOwnTurn && !state?.gameOver && !busy && networkStatus.connected !== false) {
+  const actorSide = mode === 'local' ? state?.turn : networkStatus.side;
+  const canActNow = actorSide && state?.turn === actorSide;
+  const canSelect = canActNow && (!piece.revealed || piece.side === actorSide);
+  if (canSelect && !state?.gameOver && !busy && networkStatus.connected !== false) {
     el.classList.add('selectable');
   }
 
@@ -186,23 +186,28 @@ function renderStatus(state) {
     turnTextEl.textContent = sideName(state.turn) + '回合';
     phaseTextEl.textContent = busy ? (mode === 'online' ? '等待服务端确认' : '动画播放中') : '对局进行中';
     if (selected) {
-      hintTextEl.textContent = selected.revealed
-        ? '请选择一个高亮位置移动'
-        : '按原始位置类型移动，或点击“原地翻开”';
+      if (selected.revealed) {
+        hintTextEl.textContent = '请选择一个高亮位置移动';
+      } else if (selected.side === state.turn) {
+        hintTextEl.textContent = '这是一枚己方暗棋：可按原始位置类型移动，或直接翻开';
+      } else {
+        hintTextEl.textContent = '这是一枚对方暗棋：本回合可以直接翻开，但不能移动';
+      }
     } else if (mode === 'online' && state.turn !== networkStatus.side) {
       hintTextEl.textContent = '等待对方操作';
     } else {
-      hintTextEl.textContent = '选择一枚己方棋子开始行动';
+      hintTextEl.textContent = '选择一枚己方棋子，或翻开任意暗棋开始行动';
     }
   }
 
   const canReveal = Boolean(
     selected &&
     !selected.revealed &&
+    state?.turn &&
     !state?.gameOver &&
     !busy &&
     !onlineBlocked &&
-    (mode === 'local' || selected.side === networkStatus.side),
+    (mode === 'local' || state.turn === networkStatus.side),
   );
   revealBtn.disabled = !canReveal;
 
@@ -212,7 +217,7 @@ function renderStatus(state) {
       stateLabel + '<br>首次行动类型：' + originalTypeLabel(selected);
     selectedBadgeEl.textContent = selected.revealed ? visibleType(selected) : '暗棋';
   } else {
-    selectedInfoEl.textContent = '选择己方棋子后，这里会显示它的公开信息。';
+    selectedInfoEl.textContent = '选择己方棋子，或选择任意暗棋后，这里会显示公开信息。';
     selectedBadgeEl.textContent = '未选择';
   }
 
@@ -263,8 +268,9 @@ function handlePieceClick(id) {
   const piece = state.pieces.find(p => p.id === id && p.alive);
   if (!piece) return;
 
-  const isOwn = mode === 'local' ? piece.side === state.turn : piece.side === state.turn && piece.side === networkStatus.side;
-  if (isOwn) {
+  const actorSide = mode === 'local' ? state.turn : networkStatus.side;
+  const canSelect = actorSide === state.turn && (!piece.revealed || piece.side === actorSide);
+  if (canSelect) {
     session.select(id);
     return;
   }
@@ -374,7 +380,9 @@ function animateReveal() {
         currentEl.classList.remove('hidden');
         currentEl.classList.add('revealed');
       }
-      addLog(sideName(selected.side) + '原地翻开：' + (revealed ? visibleType(revealed) : '已翻开'));
+      const actorSide = mode === 'local' ? after?.turn === SIDE.RED ? SIDE.BLACK : SIDE.RED : networkStatus.side;
+      const ownerText = selected.side === actorSide ? '己方' : '对方';
+      addLog(sideName(actorSide) + '原地翻开' + ownerText + '暗棋：' + (revealed ? visibleType(revealed) : '已翻开'));
       if (after?.outcome === 'CHECKMATE') {
         addLog(sideName(selected.side) + '将死对方，游戏结束。');
       } else if (after?.outcome === 'STALEMATE') {
