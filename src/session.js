@@ -6,6 +6,8 @@ const randomId = () => globalThis.crypto?.randomUUID?.() ?? (Date.now() + '-' + 
 
 function wsEndpoint(endpoint) {
   if (endpoint) return endpoint;
+  const configured = globalThis.__DARK_CHESS_CONFIG__?.wsEndpoint;
+  if (configured) return configured;
   const protocol = globalThis.location?.protocol === 'https:' ? 'wss:' : 'ws:';
   const host = globalThis.location?.host ?? '127.0.0.1:8080';
   return protocol + '//' + host;
