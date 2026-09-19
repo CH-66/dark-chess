@@ -1,157 +1,31 @@
 # 原型实现说明 V0.4
 
-## 技术方案
+## V1.2 规则修复
 
-- HTML5
-- CSS3
-- 原生 JavaScript ES Modules
-- Node.js 原生 test runner
-- GitHub Actions
-- 零第三方运行时依赖
+- 更正上一轮 Review：兵/卒在中国象棋中按照前进及过河后的横向方式移动和吃子，因此当前攻击判定不应把兵卒前进单独视为错误。
+- 增加将死与和棋终局判定。
+- 正常终局优先采用 `CHECKMATE` / `STALEMATE`；`CAPTURE_KING` 作为历史兼容或异常兜底。
+- 阵营开局确定且公开；随机只改变本方真实棋子类型。
+- 敌方暗棋可以直接被吃，身份默认不因被吃而公开。
 
-当前阶段优先验证游戏规则和交互，不引入前端框架、构建系统或后端服务。
+## 安全与终局判定
 
-## 数据模型
+`candidateTargets() → simulateMove() → isKingInCheck() → legalTargets() → movePiece()`
 
-棋子对象核心字段：
+- 未翻开暗棋的行动依据：`originalType`。
+- 已翻开棋子的行动依据：`actualType`。
+- `isSquareAttacked()` 使用当前可执行的棋子规则判断攻击。
+- `legalTargets()` 过滤所有自将和将帅照面走法。
+- `hasAnyLegalAction()` 判断当前方是否存在合法移动；被将军时不把原地翻棋视为合法行动。
+- `finishTurn()` 在每次合法移动或翻棋后检查下一方：被将军且无合法行动 → `CHECKMATE`；未被将军且无合法行动 → `STALEMATE`。
 
-```js
-{
-  id,
-  side,
-  x,
-  y,
-  originalType,
-  actualType,
-  revealed,
-  alive
-}
-```
+## 状态结果
 
-- `side`：RED / BLACK
-- `x`, `y`：棋盘坐标
-- `originalType`：初始标准位置对应的棋子类型
-- `actualType`：真实棋子类型
-- `revealed`：是否已经翻开
-- `alive`：是否仍在棋盘上
+- `outcome = null`：对局进行中。
+- `outcome = CHECKMATE`：将死，`winner` 为攻击方。
+- `outcome = STALEMATE`：无将且无合法行动，`winner = null`。
+- `outcome = CAPTURE_KING`：历史兼容/异常兜底。
 
-## 游戏状态机
+## UI
 
-```text
-HIDDEN
-  ├── revealInPlace ───────────────> REVEALED
-  └── moveByOriginalTypeAndReveal -> REVEALED
-
-REVEALED
-  └── normalMove ─────────────────> REVEALED
-
-任意状态
-  └── capture king ────────────────> GAME_OVER
-```
-
-其中最关键的两条规则是：
-
-> 暗棋第一次行动使用 `originalType`；翻开后立即切换为 `actualType`。
-
-> 任何落子完成后的局面都必须保证己方帅/将没有受到攻击。
-
-## 不能送将的实现
-
-规则引擎拆成“候选走法”和“安全走法”两层，避免攻击判断与回合合法性互相污染。
-
-```text
-candidateTargets()
-      ↓
-simulateMove()
-      ↓
-isKingInCheck()
-      ↓
-legalTargets()
-      ↓
-movePiece()
-```
-
-- `candidateTargets()`：只计算棋子按照当前可执行类型的基础走法，不检查回合。
-- `simulateMove()`：复制局面并模拟移动、吃子以及暗棋移动后的翻开。
-- `isSquareAttacked()`：判断一个格点是否受到指定阵营攻击。
-- `isKingInCheck()`：定位该方帅/将并调用攻击判定。
-- `legalTargets()`：过滤掉所有模拟后会让己方帅/将被攻击的目标。
-
-攻击类型规则：
-
-- 未翻开暗棋使用 `originalType`；
-- 已翻开棋子使用 `actualType`；
-- 帅/将除一步攻击外，还检查同列无子遮挡的“将帅照面”。
-
-因此前端高亮不会出现“送将”目标，而 `movePiece()` 最终也通过 `legalTargets()` 再次校验。
-
-## 当前已实现
-
-- 标准 9×10 棋盘。
-- 双方标准16枚棋子随机身份。
-- 帅/将开局明牌。
-- 暗棋原地翻开。
-- 暗棋按原始位置类型移动并自动翻开。
-- 七类棋子基础走法。
-- 马腿、象眼、炮架、兵过河等规则。
-- 吃子与吃帅/将胜利。
-- 吃掉暗棋不自动公开身份。
-- 目标位置高亮。
-- 翻棋、落子、吃子动画。
-- 移动日志。
-- 固定种子复现同一随机布局。
-- 移动端响应式界面。
-- `prefers-reduced-motion` 动画降级。
-- 规则单元测试与 GitHub Actions。
-
-## 测试策略
-
-`tests/game.test.js` 以纯函数状态层为核心，不依赖浏览器环境。
-
-测试重点：
-
-1. 初始棋子数量和随机布局。
-2. 暗棋 originalType / actualType 身份切换。
-3. 七类棋子合法走法。
-4. 阻挡、炮架、过河、九宫等边界。
-5. 吃暗棋与吃帅/将。
-6. 非法操作与回合控制。
-7. 状态更新不修改旧对象。
-8. 固定种子可复现。
-
-## 当前刻意省略
-
-- 联网同步
-- 登录/账号体系
-- AI 对手
-- 服务端保存对局
-- 服务端防作弊
-- 完整音效
-- 传统将军/应将体系
-
-## 后续路线
-
-### V0.4：完整本地对战体验
-
-- 悔棋。
-- 回放。
-- 对局导出/导入。
-- 战绩与统计。
-- 更完整的动画时序。
-- 音效与静音开关。
-
-### V0.4：可发布 Web 版本
-
-- GitHub Pages / 静态部署。
-- 分享对局种子。
-- 更完善的移动端触控。
-- 首屏操作说明。
-
-### V1.0：联网对战
-
-- 服务端维护真实棋子身份。
-- 客户端只接收当前玩家允许看到的信息。
-- 房间与匹配。
-- 断线重连。
-- 对局记录与回放。
-- 服务端权威规则判定。
+`src/app.js` 根据 `outcome` 显示将死胜负或和棋，避免 `winner = null` 时错误显示某一方获胜。
