@@ -75,8 +75,9 @@ export function createGameServer({ port = 8080, host = '127.0.0.1' } = {}) {
 
   wss.on('connection', socket => {
     socket.on('message', raw => {
+      let message = null;
       try {
-        const message = JSON.parse(String(raw));
+        message = JSON.parse(String(raw));
         const commandType = message?.command?.type;
 
         if ((commandType === 'room.create' || commandType === 'room.join' || commandType === 'game.resync') &&
