@@ -55,6 +55,8 @@ export function createResyncRequest(roomId, lastRevision, sessionToken, commandI
     roomId,
     commandId: commandId ?? String(lastRevision),
     expectedRevision: lastRevision,
+    type: COMMANDS.RESYNC,
+    lastRevision,
     command: { type: COMMANDS.RESYNC, lastRevision, sessionToken },
   };
 }
