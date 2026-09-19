@@ -147,3 +147,27 @@ GitHub Actions 会在 push / pull request 时自动执行规则测试、内建 c
 ## 当前阶段定位
 
 V0.4 第三阶段是可运行的联网对战原型，尚未进入生产公网部署。下一步进入部署、HTTPS/WSS、反向代理和异地浏览器联调。
+
+
+## 公网部署基线
+
+仓库已提供 `render.yaml` 和 `Dockerfile`。
+
+### Render
+
+1. 在 Render 创建 Blueprint/Web Service 并连接本仓库。
+2. 使用 `render.yaml` 的 Web Service 配置。
+3. 服务监听 `HOST=0.0.0.0`，端口读取 Render 注入的 `PORT`。
+4. 健康检查路径为 `/healthz`。
+5. 浏览器客户端会根据当前页面协议自动使用 `wss://` 连接。
+
+当前原型可以使用 Render Free 做公网联调；免费 Web Service 空闲 15 分钟会休眠，下一次 HTTP 请求或新的 WebSocket 连接会唤醒。免费实例文件系统也是临时的，因此当前房间状态只适合原型联调，不作为生产持久化方案。 
+
+### Docker
+
+```bash
+docker build -t dark-chess:0.4 .
+docker run --rm -p 8080:8080 -e HOST=0.0.0.0 -e PORT=8080 dark-chess:0.4
+```
+
+公网正式联调需要 HTTPS/WSS。当前服务端已经将 HTTP 与 WebSocket 放在同一个端口，便于直接放在反向代理后面。
