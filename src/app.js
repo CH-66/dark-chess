@@ -338,6 +338,7 @@ async function animateMove(piece, target) {
 
     if (mode === 'online') {
       lastLoggedRemoteRevision = after?.revision ?? lastLoggedRemoteRevision;
+    }
     await delay(FLIP_MS / 2);
   } finally {
     busy = false;
