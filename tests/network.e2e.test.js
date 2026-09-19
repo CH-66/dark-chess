@@ -75,7 +75,7 @@ test('两浏览器上下文：同房间、不同视图、revision 同步、断�
 
   await red.evaluate(() => window.__DARK_CHESS_E2E_NETWORK__.reconnect());
   await red.waitForFunction(() => window.__DARK_CHESS_E2E_NETWORK__.connected === true);
-  await red.waitForFunction(() => window.__DARK_CHESS_E2E_NETWORK__.getView()?.revision === 1);
+  await red.waitForFunction(() => window.__DARK_CHESS_E2E_NETWORK__.getView()?.revision === 2);
 
   const reconnected = await red.evaluate(() => window.__DARK_CHESS_E2E_NETWORK__.getView());
   expect(reconnected.playerSide).toBe('RED');
