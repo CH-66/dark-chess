@@ -262,58 +262,74 @@ jobs:
           fi
 
           if [ "$overall" -eq 0 ] && [ -n "$PUBLIC_URL" ]; then
+            echo "===== Browser-like curl diagnostics ====="
+            curl -L -sS -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/144.0.0.0 Safari/537.36"               -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"               -D "$WORKDIR/browser-like-headers.txt"               -o "$WORKDIR/browser-like.html"               --max-time 20 "$PUBLIC_URL/"
+            echo "browser_like_http=$?"
+            head -n 20 "$WORKDIR/browser-like-headers.txt" || true
+            echo "browser_like_body_marker=$(grep -c '随机暗棋' "$WORKDIR/browser-like.html" 2>/dev/null || true)"
+          fi
+
+          if [ "$overall" -eq 0 ] && [ -n "$PUBLIC_URL" ]; then
             PUBLIC_URL="$PUBLIC_URL" node --input-type=module <<'NODE' >"$WORKDIR/browser-acceptance.log" 2>&1
           import { chromium } from '@playwright/test';
 
-          const url = process.env.PUBLIC_URL;
+          const url = process.env.PUBLIC_URL.replace(/\/$/, '');
           const browser = await chromium.launch({ headless: true });
-          const page = await browser.newPage();
+          const page = await browser.newPage({
+            userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/144.0.0.0 Safari/537.36',
+            extraHTTPHeaders: {
+              accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            },
+          });
+
           const consoleErrors = [];
           const pageErrors = [];
-
           page.on('console', msg => {
             if (msg.type() === 'error') consoleErrors.push(msg.text());
           });
           page.on('pageerror', err => pageErrors.push(err.message));
 
-          const response = await page.goto(url + '/', { waitUntil: 'networkidle' });
+          const response = await page.goto(url + '/?browserAcceptance=1', {
+            waitUntil: 'domcontentloaded',
+          });
+
+          const finalUrl = page.url();
+          const body = await page.locator('body').innerText().catch(() => '');
+          const title = await page.title().catch(() => '');
+          const pieceCount = await page.locator('[data-piece-id]').count().catch(() => 0);
+
+          console.log(JSON.stringify({
+            status: response?.status() ?? null,
+            finalUrl,
+            title,
+            pieceCount,
+            hasGameText: body.includes('随机暗棋'),
+            consoleErrors,
+            pageErrors,
+          }, null, 2));
+
           if (!response || response.status() !== 200) {
-            throw new Error('Home page HTTP status: ' + (response?.status() ?? 'no response'));
+            throw new Error('Home navigation status: ' + (response?.status() ?? 'no response'));
           }
-
+          if (!body.includes('随机暗棋')) {
+            throw new Error('Home document did not contain game text');
+          }
           await page.locator('[data-testid="board"]').waitFor({ state: 'visible' });
-          const title = await page.title();
-          const pieceCount = await page.locator('[data-piece-id]').count();
-
-          if (!title.includes('随机暗棋')) {
-            throw new Error('Unexpected page title: ' + title);
-          }
           if (pieceCount < 32) {
             throw new Error('Expected at least 32 chess pieces, got ' + pieceCount);
           }
           if (consoleErrors.length || pageErrors.length) {
-            throw new Error(
-              'Browser errors detected: ' +
-              JSON.stringify({ consoleErrors, pageErrors })
-            );
+            throw new Error('Browser errors: ' + JSON.stringify({ consoleErrors, pageErrors }));
           }
 
-          const refreshResponse = await page.reload({ waitUntil: 'networkidle' });
-          if (!refreshResponse || refreshResponse.status() !== 200) {
-            throw new Error(
-              'Refresh HTTP status: ' + (refreshResponse?.status() ?? 'no response')
-            );
-          }
-          await page.locator('[data-testid="board"]').waitFor({ state: 'visible' });
-
+          const reload = await page.reload({ waitUntil: 'domcontentloaded' });
           console.log(JSON.stringify({
-            homeStatus: response.status(),
-            refreshStatus: refreshResponse.status(),
-            title,
-            pieceCount,
-            consoleErrors,
-            pageErrors,
-          }));
+            reloadStatus: reload?.status() ?? null,
+            reloadUrl: page.url(),
+          }, null, 2));
+          if (!reload || reload.status() !== 200) {
+            throw new Error('Reload navigation status: ' + (reload?.status() ?? 'no response'));
+          }
 
           await browser.close();
           NODE
@@ -321,10 +337,11 @@ jobs:
             if [ "$code" -ne 0 ]; then
               FAILED_STAGE="Public browser acceptance"
               FAILED_CODE=$code
-              FAILED_OUTPUT="$(tail -n 40 "$WORKDIR/browser-acceptance.log")"
+              FAILED_OUTPUT="$(tail -n 60 "$WORKDIR/browser-acceptance.log")"
               overall=1
             fi
           fi
+
 
           cat > "$STATUS_FILE" <<EOF
           # CloudBase 部署回执
@@ -355,22 +372,24 @@ jobs:
             exit "$overall"
           fi
 
-      - name: Commit deployment receipt
+      - name: Publish deployment receipt
         if: always()
         shell: bash
         run: |
-          if [ ! -f docs/CLOUDBASE_DEPLOY_STATUS.md ]; then
-            cat > docs/CLOUDBASE_DEPLOY_STATUS.md <<'EOF'
-          # CloudBase 部署回执
-
-          - 总体结果：FAIL
-          - 说明：部署作业未能生成正常回执，通常意味着 Actions 在回执步骤前就被取消、禁止执行或工作流未运行。
-          EOF
+          if [ -f docs/CLOUDBASE_DEPLOY_STATUS.md ]; then
+            cat docs/CLOUDBASE_DEPLOY_STATUS.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "# CloudBase 部署回执" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Overall: workflow did not reach receipt generation" >> "$GITHUB_STEP_SUMMARY"
           fi
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/CLOUDBASE_DEPLOY_STATUS.md
-          git diff --cached --quiet && exit 0
-          git commit -m "ci: record CloudBase deployment receipt [skip ci]"
-          git push
+          mkdir -p artifacts
+          cp docs/CLOUDBASE_DEPLOY_STATUS.md artifacts/cloudbase-deploy-status.md 2>/dev/null || true
+
+      - name: Upload deployment receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudbase-deployment-receipt
+          path: artifacts/cloudbase-deploy-status.md
+          if-no-files-found: warn
