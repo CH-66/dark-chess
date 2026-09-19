@@ -177,6 +177,12 @@ jobs:
           const res = await cloudbase.hosting.setWebsiteDocument({
             indexDocument: 'index.html',
             errorDocument: 'index.html',
+            routingRules: [
+              {
+                httpErrorCodeReturnedEquals: '404',
+                replaceKeyWith: 'index.html',
+              },
+            ],
           });
           if (res?.statusCode !== 200) {
             throw new Error(JSON.stringify(res));
@@ -224,11 +230,99 @@ jobs:
             if grep -q '随机暗棋' "$WORKDIR/refresh.html" 2>/dev/null; then
               BODY_REFRESH="yes"
             fi
-            if [ "$HTTP_HOME" != "200" ] || [ "$HTTP_JS" != "200" ] || [ "$HTTP_CSS" != "200" ]; then
+            if [ "$HTTP_HOME" != "200" ] || [ "$HTTP_JS" != "200" ] || [ "$HTTP_CSS" != "200" ] || [ "$HTTP_REFRESH" != "200" ]; then
               overall=1
               FAILED_STAGE="Public HTTP acceptance"
               FAILED_CODE=1
               FAILED_OUTPUT="home=$HTTP_HOME js=$HTTP_JS css=$HTTP_CSS"
+            fi
+          fi
+
+
+          if [ "$overall" -eq 0 ] && [ -n "$PUBLIC_URL" ]; then
+            npm install --no-save --no-package-lock @playwright/test >"$WORKDIR/playwright-install.log" 2>&1
+            code=$?
+            if [ "$code" -ne 0 ]; then
+              FAILED_STAGE="Install Playwright"
+              FAILED_CODE=$code
+              FAILED_OUTPUT="$(tail -n 40 "$WORKDIR/playwright-install.log")"
+              overall=1
+            fi
+          fi
+
+          if [ "$overall" -eq 0 ] && [ -n "$PUBLIC_URL" ]; then
+            npx playwright install chromium --with-deps >"$WORKDIR/playwright-browser.log" 2>&1
+            code=$?
+            if [ "$code" -ne 0 ]; then
+              FAILED_STAGE="Install Chromium"
+              FAILED_CODE=$code
+              FAILED_OUTPUT="$(tail -n 40 "$WORKDIR/playwright-browser.log")"
+              overall=1
+            fi
+          fi
+
+          if [ "$overall" -eq 0 ] && [ -n "$PUBLIC_URL" ]; then
+            PUBLIC_URL="$PUBLIC_URL" node --input-type=module <<'NODE' >"$WORKDIR/browser-acceptance.log" 2>&1
+          import { chromium } from '@playwright/test';
+
+          const url = process.env.PUBLIC_URL;
+          const browser = await chromium.launch({ headless: true });
+          const page = await browser.newPage();
+          const consoleErrors = [];
+          const pageErrors = [];
+
+          page.on('console', msg => {
+            if (msg.type() === 'error') consoleErrors.push(msg.text());
+          });
+          page.on('pageerror', err => pageErrors.push(err.message));
+
+          const response = await page.goto(url + '/', { waitUntil: 'networkidle' });
+          if (!response || response.status() !== 200) {
+            throw new Error('Home page HTTP status: ' + (response?.status() ?? 'no response'));
+          }
+
+          await page.locator('[data-testid="board"]').waitFor({ state: 'visible' });
+          const title = await page.title();
+          const pieceCount = await page.locator('[data-piece-id]').count();
+
+          if (!title.includes('随机暗棋')) {
+            throw new Error('Unexpected page title: ' + title);
+          }
+          if (pieceCount < 32) {
+            throw new Error('Expected at least 32 chess pieces, got ' + pieceCount);
+          }
+          if (consoleErrors.length || pageErrors.length) {
+            throw new Error(
+              'Browser errors detected: ' +
+              JSON.stringify({ consoleErrors, pageErrors })
+            );
+          }
+
+          const refreshResponse = await page.reload({ waitUntil: 'networkidle' });
+          if (!refreshResponse || refreshResponse.status() !== 200) {
+            throw new Error(
+              'Refresh HTTP status: ' + (refreshResponse?.status() ?? 'no response')
+            );
+          }
+          await page.locator('[data-testid="board"]').waitFor({ state: 'visible' });
+
+          console.log(JSON.stringify({
+            homeStatus: response.status(),
+            refreshStatus: refreshResponse.status(),
+            title,
+            pieceCount,
+            consoleErrors,
+            pageErrors,
+          }));
+
+          await browser.close();
+          NODE
+            code=$?
+            if [ "$code" -ne 0 ]; then
+              FAILED_STAGE="Public browser acceptance"
+              FAILED_CODE=$code
+              FAILED_OUTPUT="$(tail -n 40 "$WORKDIR/browser-acceptance.log")"
+              overall=1
             fi
           fi
 
