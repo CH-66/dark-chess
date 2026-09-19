@@ -125,10 +125,10 @@ function palaceContains(side, x, y) {
 export function legalTargets(state, piece) {
   if (!piece || !piece.alive || state.gameOver || piece.side !== state.turn) return [];
 
-  const type = piece.revealed ? piece.actualType : piece.originalType;
+  const movementType = piece.revealed ? piece.actualType : piece.originalType;
   const out = [];
 
-  if (type === 'king') {
+  if (movementType === 'king') {
     for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
       const x = piece.x + dx;
       const y = piece.y + dy;
@@ -136,11 +136,11 @@ export function legalTargets(state, piece) {
     }
   }
 
-  if (type === 'rook') {
+  if (movementType === 'rook') {
     slide(state, piece, out, [[1,0],[-1,0],[0,1],[0,-1]]);
   }
 
-  if (type === 'knight') {
+  if (movementType === 'knight') {
     const moves = [[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]];
     for (const [dx, dy] of moves) {
       const legX = Math.abs(dx) === 2 ? piece.x + dx / 2 : piece.x;
@@ -149,7 +149,7 @@ export function legalTargets(state, piece) {
     }
   }
 
-  if (type === 'bishop') {
+  if (movementType === 'bishop') {
     const moves = [[2,2],[2,-2],[-2,2],[-2,-2]];
     for (const [dx, dy] of moves) {
       const x = piece.x + dx;
@@ -161,7 +161,7 @@ export function legalTargets(state, piece) {
     }
   }
 
-  if (type === 'advisor') {
+  if (movementType === 'advisor') {
     for (const [dx, dy] of [[1,1],[1,-1],[-1,1],[-1,-1]]) {
       const x = piece.x + dx;
       const y = piece.y + dy;
@@ -169,7 +169,7 @@ export function legalTargets(state, piece) {
     }
   }
 
-  if (type === 'cannon') {
+  if (movementType === 'cannon') {
     for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
       let x = piece.x + dx;
       let y = piece.y + dy;
@@ -192,7 +192,7 @@ export function legalTargets(state, piece) {
     }
   }
 
-  if (type === 'pawn') {
+  if (movementType === 'pawn') {
     const direction = piece.side === SIDE.RED ? -1 : 1;
     addTarget(state, piece, out, piece.x, piece.y + direction);
     const crossed = piece.side === SIDE.RED ? piece.y <= 4 : piece.y >= 5;
