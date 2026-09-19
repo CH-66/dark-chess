@@ -15,7 +15,7 @@ const MIME = Object.freeze({
   '.json': 'application/json; charset=utf-8',
 });
 
-export function createGameServer({ port = 8080 } = {}) {
+export function createGameServer({ port = 8080, host = '127.0.0.1' } = {}) {
   const rooms = new Map();
   const httpServer = createServer(async (req, res) => {
     try {
@@ -57,7 +57,7 @@ export function createGameServer({ port = 8080 } = {}) {
     return rooms.get(context.roomId);
   }
 
-  function welcome(socket, room, player, type = 'room.joined') {
+  function welcome(socket, room, player, type = 'room.joined', commandId = null) {
     send(socket, {
       type,
       protocolVersion: 1,
@@ -66,7 +66,7 @@ export function createGameServer({ port = 8080 } = {}) {
       playerId: player.playerId,
       side: player.side,
       sessionToken: player.sessionToken,
-      started: room.isStarted(),
+      commandId,\n      started: room.isStarted(),
       revision: room.game?.revision ?? 0,
       view: room.playerView(player.side),
     });
@@ -204,7 +204,7 @@ export function createGameServer({ port = 8080 } = {}) {
     httpServer,
     wss,
     async start() {
-      await new Promise(resolve => httpServer.listen(port, '127.0.0.1', resolve));
+      await new Promise(resolve => httpServer.listen(port, host, resolve));
       return httpServer.address().port;
     },
     async stop() {
