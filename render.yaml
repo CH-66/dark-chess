@@ -3,7 +3,7 @@ services:
     name: dark-chess-online
     runtime: node
     plan: free
-    buildCommand: npm ci
+    buildCommand: npm install
     startCommand: node server/index.js
     healthCheckPath: /healthz
     envVars:
