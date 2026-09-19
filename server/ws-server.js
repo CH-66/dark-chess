@@ -21,6 +21,14 @@ export function createGameServer({ port = 8080, host = '127.0.0.1' } = {}) {
     try {
       const url = new URL(req.url, 'http://127.0.0.1');
       let pathname = decodeURIComponent(url.pathname);
+      if (pathname === '/healthz') {
+        res.writeHead(200, {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store',
+        });
+        res.end(JSON.stringify({ status: 'ok', rooms: rooms.size }));
+        return;
+      }
       if (pathname === '/') pathname = '/index.html';
       const relative = pathname.replace(/^\/+/, '');
       const file = normalize(join(ROOT, relative));
@@ -39,6 +47,11 @@ export function createGameServer({ port = 8080, host = '127.0.0.1' } = {}) {
 
   const wss = new WebSocketServer({ server: httpServer });
   const sockets = new Map();
+  const heartbeatTimer = setInterval(() => {
+    for (const socket of wss.clients) {
+      if (socket.readyState === WebSocket.OPEN) socket.ping();
+    }
+  }, 30_000);
 
   function send(socket, message) {
     if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
@@ -211,6 +224,7 @@ export function createGameServer({ port = 8080, host = '127.0.0.1' } = {}) {
       return httpServer.address().port;
     },
     async stop() {
+      clearInterval(heartbeatTimer);
       await new Promise(resolve => wss.close(resolve));
       await new Promise(resolve => httpServer.close(resolve));
     },
