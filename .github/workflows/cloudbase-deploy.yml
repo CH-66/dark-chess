@@ -1,5 +1,9 @@
 name: Deploy to CloudBase
 
+concurrency:
+  group: cloudbase-production-deploy
+  cancel-in-progress: true
+
 on:
   push:
     branches:
