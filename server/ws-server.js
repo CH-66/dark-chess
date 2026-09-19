@@ -84,7 +84,7 @@ export function createGameServer({ port = 8080 } = {}) {
           const result = room.join({});
           socket.__darkChess = { roomId: room.roomId, playerId: result.player.playerId };
           sockets.set(result.player.playerId, socket);
-          welcome(socket, room, result.player, 'room.created');
+          welcome(socket, room, result.player, 'room.created', message.commandId);
           return;
         }
 
